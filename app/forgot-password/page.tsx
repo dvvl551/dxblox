@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
       setLoading(true);
 
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: "https://dxblox.vercel.app/reset-password",
       });
 
 if (error) {
