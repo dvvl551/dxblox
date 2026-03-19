@@ -1,7 +1,84 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import Navbar from "@/components/Navbar";
+import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedRules, setAcceptedRules] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!username.trim()) {
+      setErrorMessage("Please enter a username.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setErrorMessage("Please enter an email.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    if (!acceptedRules) {
+      setErrorMessage("You must accept the platform rules.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+          },
+        },
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setSuccessMessage(
+        "Account created. Check your email to confirm your account."
+      );
+
+      setUsername("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setAcceptedRules(false);
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
@@ -24,9 +101,7 @@ export default function SignupPage() {
             <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
               Create your account
             </div>
-            <h1 className="text-4xl font-black tracking-tight">
-              Join Dxblox
-            </h1>
+            <h1 className="text-4xl font-black tracking-tight">Join Dxblox</h1>
             <p className="mt-4 max-w-xl leading-7 text-[#9CA3AF]">
               Create your account to save items, manage listings and build your
               seller profile on Dxblox.
@@ -59,7 +134,7 @@ export default function SignupPage() {
               </p>
             </div>
 
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSignup}>
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Username
@@ -67,6 +142,8 @@ export default function SignupPage() {
                 <input
                   type="text"
                   placeholder="Choose a username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                 />
               </div>
@@ -78,6 +155,8 @@ export default function SignupPage() {
                 <input
                   type="email"
                   placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                 />
               </div>
@@ -89,6 +168,8 @@ export default function SignupPage() {
                 <input
                   type="password"
                   placeholder="Create a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                 />
               </div>
@@ -100,6 +181,8 @@ export default function SignupPage() {
                 <input
                   type="password"
                   placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                 />
               </div>
@@ -107,6 +190,8 @@ export default function SignupPage() {
               <label className="flex items-start gap-3 text-sm text-[#9CA3AF]">
                 <input
                   type="checkbox"
+                  checked={acceptedRules}
+                  onChange={(e) => setAcceptedRules(e.target.checked)}
                   className="mt-1 rounded border-white/10 bg-white/5"
                 />
                 <span>
@@ -115,11 +200,24 @@ export default function SignupPage() {
                 </span>
               </label>
 
+              {errorMessage && (
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {errorMessage}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                  {successMessage}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                disabled={loading}
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Create account
+                {loading ? "Creating account..." : "Create account"}
               </button>
             </form>
 
