@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function SignupPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,13 +31,28 @@ export default function SignupPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!username.trim()) {
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!cleanUsername) {
       setErrorMessage("Please enter a username.");
       return;
     }
 
-    if (!email.trim()) {
+    if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+      setErrorMessage("Username must be between 3 and 20 characters.");
+      return;
+    }
+
+    if (!cleanEmail) {
       setErrorMessage("Please enter an email.");
+      return;
+    }
+
+    if (!emailRegex.test(cleanEmail)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
 
@@ -59,11 +75,11 @@ export default function SignupPage() {
       setLoading(true);
 
       const { error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
         options: {
           data: {
-            username,
+            username: cleanUsername,
           },
         },
       });
