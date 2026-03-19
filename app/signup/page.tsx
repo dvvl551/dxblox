@@ -87,23 +87,34 @@ const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
         },
       });
 
-      if (error) {
-        if (
-          error.message.toLowerCase().includes("rate limit") ||
-          error.message.toLowerCase().includes("email rate limit exceeded")
-        ) {
-          setErrorMessage(
-            "Too many signup attempts right now. Please wait a bit and try again later."
-          );
-        } else {
-          setErrorMessage(error.message);
-        }
-        return;
-      }
+if (error) {
+  const errorText = error.message.toLowerCase();
 
-      setSuccessMessage(
-        "Account created. Check your email to confirm your account."
-      );
+  if (
+    errorText.includes("rate limit") ||
+    errorText.includes("email rate limit exceeded")
+  ) {
+    setErrorMessage(
+      "Too many signup attempts right now. Please wait a bit and try again later."
+    );
+  } else if (
+    errorText.includes("user already registered") ||
+    errorText.includes("already registered")
+  ) {
+    setErrorMessage("An account already exists with this email.");
+  } else if (
+    errorText.includes("password should be at least") ||
+    errorText.includes("weak password")
+  ) {
+    setErrorMessage("Password is too weak. Please choose a stronger one.");
+  } else {
+    setErrorMessage("Signup failed. Please check your details and try again.");
+  }
+
+  return;
+}
+
+setSuccessMessage("Account created successfully. You can now log in.");
 
       setUsername("");
       setEmail("");
@@ -177,52 +188,68 @@ const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Username
                 </label>
-                <input
-                  type="text"
-                  placeholder="Choose a username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="text"
+  placeholder="Choose a username"
+  value={username}
+  onChange={(e) => {
+    setUsername(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Email
                 </label>
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="email"
+  placeholder="Enter your email"
+  value={email}
+  onChange={(e) => {
+    setEmail(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Create a password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="password"
+  placeholder="Create a password"
+  value={password}
+  onChange={(e) => {
+    setPassword(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Confirm password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="password"
+  placeholder="Confirm your password"
+  value={confirmPassword}
+  onChange={(e) => {
+    setConfirmPassword(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
               <label className="flex items-start gap-3 text-sm text-[#9CA3AF]">

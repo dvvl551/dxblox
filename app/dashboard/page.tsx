@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loadingListings, setLoadingListings] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -41,7 +43,7 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        setErrorMessage(error.message);
+        setErrorMessage("Could not load your listings.");
         setListings([]);
         setLoadingListings(false);
         return;
@@ -85,10 +87,51 @@ export default function DashboardPage() {
     if (status === "Available") {
       return "border-emerald-500/30 bg-emerald-500/15 text-emerald-300";
     }
+
     if (status === "Pending") {
       return "border-orange-500/30 bg-orange-500/15 text-orange-300";
     }
+
+    if (status === "Sold") {
+      return "border-red-500/30 bg-red-500/15 text-red-300";
+    }
+
     return "border-white/10 bg-white/5 text-white/75";
+  };
+
+  const handleDeleteListing = async (listingId: string) => {
+    if (!user) return;
+    if (deletingId) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this listing?"
+    );
+
+    if (!confirmed) return;
+
+    setErrorMessage("");
+    setSuccessMessage("");
+    setDeletingId(listingId);
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", listingId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        setErrorMessage("Could not delete listing. Please try again.");
+        return;
+      }
+
+      setListings((prev) => prev.filter((listing) => listing.id !== listingId));
+      setSuccessMessage("Listing deleted successfully.");
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -135,14 +178,17 @@ export default function DashboardPage() {
                 <div className="text-xs text-[#9CA3AF]">Active listings</div>
                 <div className="mt-1 text-2xl font-bold">{activeCount}</div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Pending</div>
                 <div className="mt-1 text-2xl font-bold">{pendingCount}</div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Sold</div>
                 <div className="mt-1 text-2xl font-bold">{soldCount}</div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Total listings</div>
                 <div className="mt-1 text-2xl font-bold">{listings.length}</div>
@@ -156,6 +202,7 @@ export default function DashboardPage() {
               >
                 Create listing
               </Link>
+
               <Link
                 href="/wishlist"
                 className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
@@ -179,14 +226,17 @@ export default function DashboardPage() {
                   {user ? "Connected and active" : "Not signed in"}
                 </div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-sm font-semibold">Main game</div>
                 <div className="mt-2 text-[#9CA3AF]">{latestGame}</div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-sm font-semibold">Last activity</div>
                 <div className="mt-2 text-[#9CA3AF]">{latestActivity}</div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-sm font-semibold">Account type</div>
                 <div className="mt-2 text-[#9CA3AF]">{accountType}</div>
@@ -212,6 +262,12 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {successMessage && (
+              <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {successMessage}
+              </div>
+            )}
+
             {loadingListings ? (
               <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
                 Loading your listings...
@@ -223,38 +279,62 @@ export default function DashboardPage() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {listings.map((listing) => (
-                  <Link
+                  <div
                     key={listing.id}
-                    href={`/listing/${listing.id}`}
                     className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
                   >
-                    <div className="h-36 rounded-[18px] border border-white/8 bg-black/20" />
+                    <Link href={`/listing/${listing.id}`} className="block">
+                      <div className="h-36 rounded-[18px] border border-white/8 bg-black/20" />
 
-                    <div className="mt-4 flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-lg font-bold">
-                          {listing.item_name}
+                      <div className="mt-4 flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-lg font-bold">
+                            {listing.item_name}
+                          </div>
+                          <div className="mt-1 text-sm text-[#9CA3AF]">
+                            {listing.game}
+                          </div>
                         </div>
-                        <div className="mt-1 text-sm text-[#9CA3AF]">
-                          {listing.game}
-                        </div>
+
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
+                            listing.status
+                          )}`}
+                        >
+                          {listing.status}
+                        </span>
                       </div>
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
-                          listing.status
-                        )}`}
-                      >
-                        {listing.status}
-                      </span>
-                    </div>
+                    </Link>
 
-                    <div className="mt-4 flex items-center justify-between">
+                    <div className="mt-4 flex items-center justify-between gap-3">
                       <div className="text-xl font-bold">{listing.price}</div>
-                      <div className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5">
-                        View listing
-                      </div>
+
+<div className="flex items-center gap-2">
+  <Link
+    href={`/listing/${listing.id}`}
+    className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
+  >
+    View
+  </Link>
+
+  <Link
+    href={`/edit-listing/${listing.id}`}
+    className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/15"
+  >
+    Edit
+  </Link>
+
+  <button
+    type="button"
+    onClick={() => handleDeleteListing(listing.id)}
+    disabled={deletingId === listing.id}
+    className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {deletingId === listing.id ? "Deleting..." : "Delete"}
+  </button>
+</div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -270,12 +350,14 @@ export default function DashboardPage() {
                 >
                   Open profile
                 </Link>
+
                 <Link
                   href="/wishlist"
                   className="block rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-white/85 transition hover:bg-white/10"
                 >
                   Open wishlist
                 </Link>
+
                 <Link
                   href="/games"
                   className="block rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-white/85 transition hover:bg-white/10"

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 
 type ListingPageProps = {
   params: Promise<{
@@ -32,11 +34,16 @@ type SellerProfile = {
 };
 
 export default function ListingDetailPage({ params }: ListingPageProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+
   const [listingId, setListingId] = useState<string>("");
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     const loadParams = async () => {
@@ -53,6 +60,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     const fetchListing = async () => {
       setLoading(true);
       setErrorMessage("");
+      setActionMessage("");
 
       const { data: listingData, error: listingError } = await supabase
         .from("listings")
@@ -85,8 +93,47 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     fetchListing();
   }, [listingId]);
 
+  const handleDeleteListing = async () => {
+    if (!user || !listing) return;
+    if (deleting) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this listing?"
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setErrorMessage("");
+    setActionMessage("");
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", listing.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        setErrorMessage("Could not delete listing. Please try again.");
+        return;
+      }
+
+      setActionMessage("Listing deleted successfully.");
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1000);
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const sellerName = seller?.username || "Unknown seller";
   const isAdminSeller = seller?.role === "admin";
+  const isOwner = !!user && !!listing && user.id === listing.user_id;
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -116,6 +163,12 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
               <span>/</span>
               <span className="text-white">{listing.item_name}</span>
             </div>
+
+            {actionMessage && (
+              <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {actionMessage}
+              </div>
+            )}
 
             <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
@@ -206,15 +259,36 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                   </div>
 
                   <div className="mt-6 flex flex-wrap gap-3">
-                    <button className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]">
-                      Contact seller
-                    </button>
-                    <button className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5">
-                      Add to wishlist
-                    </button>
-                    <button className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15">
-                      Report
-                    </button>
+                    {isOwner ? (
+                      <>
+                        <Link
+                          href={`/edit-listing/${listing.id}`}
+                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                        >
+                          Edit listing
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={handleDeleteListing}
+                          disabled={deleting}
+                          className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deleting ? "Deleting..." : "Delete listing"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]">
+                          Contact seller
+                        </button>
+                        <button className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5">
+                          Add to wishlist
+                        </button>
+                        <button className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15">
+                          Report
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

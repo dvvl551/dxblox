@@ -8,10 +8,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 const GAME_CATEGORIES: Record<string, string[]> = {
-  "MM2": ["Knives", "Guns", "Bundles", "Looking for"],
+  MM2: ["Knives", "Guns", "Bundles", "Looking for"],
   "Adopt Me": ["Pets", "Eggs", "Vehicles", "Looking for"],
   "Blox Fruits": ["Fruits", "Bundles", "Accounts", "Looking for"],
-  "Blade Ball": ["Weapons", "Effects", "Bundles", "Looking for"],
+  "Blade Ball": ["Weapons", "Effects", "Emotes", "Bundles", "Looking for"],
   "Steal a Brainrot": [
     "Rare items",
     "Limited offers",
@@ -65,6 +65,8 @@ export default function CreateListingPage() {
   const handleGameChange = (value: string) => {
     setGame(value);
     setCategory("");
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
   };
 
   const handleOfferTypeChange = (value: string) => {
@@ -74,6 +76,9 @@ export default function CreateListingPage() {
     if (nextOfferType !== "For sale") {
       setPrice("");
     }
+
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
   };
 
   const handlePriceChange = (value: string) => {
@@ -85,6 +90,9 @@ export default function CreateListingPage() {
     if (parts[1] && parts[1].length > 2) return;
 
     setPrice(cleaned);
+
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
   };
 
   const resetForm = () => {
@@ -100,6 +108,9 @@ export default function CreateListingPage() {
 
   const handlePublish = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setErrorMessage("");
     setSuccessMessage("");
 
@@ -207,7 +218,7 @@ export default function CreateListingPage() {
       });
 
       if (error) {
-        setErrorMessage(error.message);
+        setErrorMessage("Could not publish listing. Please try again.");
         return;
       }
 
@@ -264,49 +275,53 @@ export default function CreateListingPage() {
                   <label className="mb-2 block text-sm text-[#9CA3AF]">
                     Game
                   </label>
-<select
-  value={game}
-  onChange={(e) => handleGameChange(e.target.value)}
-  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
->
-  <option value="" className="bg-[#131320] text-white">
-    Choose a game
-  </option>
-  {Object.keys(GAME_CATEGORIES).map((gameName) => (
-    <option
-      key={gameName}
-      value={gameName}
-      className="bg-[#131320] text-white"
-    >
-      {gameName}
-    </option>
-  ))}
-</select>
+                  <select
+                    value={game}
+                    onChange={(e) => handleGameChange(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="" className="bg-[#131320] text-white">
+                      Choose a game
+                    </option>
+                    {Object.keys(GAME_CATEGORIES).map((gameName) => (
+                      <option
+                        key={gameName}
+                        value={gameName}
+                        className="bg-[#131320] text-white"
+                      >
+                        {gameName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm text-[#9CA3AF]">
                     Category
                   </label>
-<select
-  value={category}
-  onChange={(e) => setCategory(e.target.value)}
-  disabled={!game}
-  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
->
-  <option value="" className="bg-[#131320] text-white">
-    {game ? "Select a category" : "Choose a game first"}
-  </option>
-  {availableCategories.map((categoryName) => (
-    <option
-      key={categoryName}
-      value={categoryName}
-      className="bg-[#131320] text-white"
-    >
-      {categoryName}
-    </option>
-  ))}
-</select>
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      setCategory(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                      if (successMessage) setSuccessMessage("");
+                    }}
+                    disabled={!game}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="" className="bg-[#131320] text-white">
+                      {game ? "Select a category" : "Choose a game first"}
+                    </option>
+                    {availableCategories.map((categoryName) => (
+                      <option
+                        key={categoryName}
+                        value={categoryName}
+                        className="bg-[#131320] text-white"
+                      >
+                        {categoryName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -320,7 +335,11 @@ export default function CreateListingPage() {
                     placeholder="Enter item name"
                     maxLength={60}
                     value={itemName}
-                    onChange={(e) => setItemName(e.target.value)}
+                    onChange={(e) => {
+                      setItemName(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                      if (successMessage) setSuccessMessage("");
+                    }}
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                   />
                 </div>
@@ -329,21 +348,21 @@ export default function CreateListingPage() {
                   <label className="mb-2 block text-sm text-[#9CA3AF]">
                     Offer type
                   </label>
-<select
-  value={offerType}
-  onChange={(e) => handleOfferTypeChange(e.target.value)}
-  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
->
-  {OFFER_TYPES.map((type) => (
-    <option
-      key={type}
-      value={type}
-      className="bg-[#131320] text-white"
-    >
-      {type}
-    </option>
-  ))}
-</select>
+                  <select
+                    value={offerType}
+                    onChange={(e) => handleOfferTypeChange(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    {OFFER_TYPES.map((type) => (
+                      <option
+                        key={type}
+                        value={type}
+                        className="bg-[#131320] text-white"
+                      >
+                        {type}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -376,23 +395,25 @@ export default function CreateListingPage() {
                   <label className="mb-2 block text-sm text-[#9CA3AF]">
                     Status
                   </label>
-<select
-  value={status}
-  onChange={(e) =>
-    setStatus(e.target.value as (typeof STATUSES)[number])
-  }
-  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
->
-  {STATUSES.map((statusValue) => (
-    <option
-      key={statusValue}
-      value={statusValue}
-      className="bg-[#131320] text-white"
-    >
-      {statusValue}
-    </option>
-  ))}
-</select>
+                  <select
+                    value={status}
+                    onChange={(e) => {
+                      setStatus(e.target.value as (typeof STATUSES)[number]);
+                      if (errorMessage) setErrorMessage("");
+                      if (successMessage) setSuccessMessage("");
+                    }}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    {STATUSES.map((statusValue) => (
+                      <option
+                        key={statusValue}
+                        value={statusValue}
+                        className="bg-[#131320] text-white"
+                      >
+                        {statusValue}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -405,7 +426,11 @@ export default function CreateListingPage() {
                   rows={6}
                   maxLength={500}
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    if (errorMessage) setErrorMessage("");
+                    if (successMessage) setSuccessMessage("");
+                  }}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
                 />
                 <div className="mt-2 text-right text-xs text-[#73798f]">
@@ -437,7 +462,11 @@ export default function CreateListingPage() {
                 <input
                   type="checkbox"
                   checked={confirmed}
-                  onChange={(e) => setConfirmed(e.target.checked)}
+                  onChange={(e) => {
+                    setConfirmed(e.target.checked);
+                    if (errorMessage) setErrorMessage("");
+                    if (successMessage) setSuccessMessage("");
+                  }}
                   className="mt-1 rounded border-white/10 bg-white/5"
                 />
                 <span>

@@ -23,38 +23,66 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+  useEffect(() => {
+  const savedEmail = localStorage.getItem("dxblox-remember-email");
 
-    if (!email.trim()) {
-      setErrorMessage("Please enter your email.");
-      return;
-    }
+  if (savedEmail) {
+    setEmail(savedEmail);
+    setRememberMe(true);
+  }
+}, []);
 
-    if (!password) {
-      setErrorMessage("Please enter your password.");
-      return;
-    }
+const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (loading) return;
+
+  setErrorMessage("");
+  setSuccessMessage("");
+
+const cleanEmail = email.trim().toLowerCase();
+
+if (!cleanEmail) {
+  setErrorMessage("Please enter your email.");
+  return;
+}
+
+if (!password) {
+  setErrorMessage("Please enter your password.");
+  return;
+}
 
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+const { error } = await supabase.auth.signInWithPassword({
+  email: cleanEmail,
+  password,
+});
 
-      if (error) {
-        setErrorMessage(error.message);
-        return;
-      }
+if (error) {
+  const errorText = error.message.toLowerCase();
+
+  if (
+    errorText.includes("invalid login credentials") ||
+    errorText.includes("invalid credentials")
+  ) {
+    setErrorMessage("Incorrect email or password.");
+  } else if (errorText.includes("email not confirmed")) {
+    setErrorMessage("Please confirm your email before logging in.");
+  } else if (errorText.includes("rate limit")) {
+    setErrorMessage("Too many login attempts. Please wait a bit and try again.");
+  } else {
+    setErrorMessage("Login failed. Please try again.");
+  }
+
+  return;
+}
 
       setSuccessMessage("Signed in successfully.");
 
       if (rememberMe) {
-        localStorage.setItem("dxblox-remember-email", email);
+        localStorage.setItem("dxblox-remember-email", cleanEmail);
       } else {
         localStorage.removeItem("dxblox-remember-email");
       }
@@ -129,46 +157,54 @@ export default function LoginPage() {
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Email
                 </label>
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="email"
+  placeholder="Enter your email"
+  value={email}
+  onChange={(e) => {
+    setEmail(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
+<input
+  type="password"
+  placeholder="Enter your password"
+  value={password}
+  onChange={(e) => {
+    setPassword(e.target.value);
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  }}
+  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+/>
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-[#9CA3AF]">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-white/10 bg-white/5"
-                  />
-                  Remember me
-                </label>
+<div className="flex items-center justify-between text-sm">
+  <label className="flex items-center gap-2 text-[#9CA3AF]">
+    <input
+      type="checkbox"
+      checked={rememberMe}
+      onChange={(e) => setRememberMe(e.target.checked)}
+      className="rounded border-white/10 bg-white/5"
+    />
+    Remember me
+  </label>
 
-                <Link
-                  href="/login"
-                  className="text-violet-300 hover:text-violet-200"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+  <Link
+    href="/forgot-password"
+    className="text-violet-300 hover:text-violet-200"
+  >
+    Forgot password?
+  </Link>
+</div>
 
               {errorMessage && (
                 <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
