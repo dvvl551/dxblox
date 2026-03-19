@@ -26,10 +26,13 @@ export default function SignupPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (loading) return;
+
+  setErrorMessage("");
+  setSuccessMessage("");
 
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();
@@ -85,7 +88,16 @@ export default function SignupPage() {
       });
 
       if (error) {
-        setErrorMessage(error.message);
+        if (
+          error.message.toLowerCase().includes("rate limit") ||
+          error.message.toLowerCase().includes("email rate limit exceeded")
+        ) {
+          setErrorMessage(
+            "Too many signup attempts right now. Please wait a bit and try again later."
+          );
+        } else {
+          setErrorMessage(error.message);
+        }
         return;
       }
 
