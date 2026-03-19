@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -46,16 +46,12 @@ const GAME_DESC_MAP: Record<string, string> = {
 };
 
 export default function DxbloxHomepage() {
-  const router = useRouter();
   const { user } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
-  const [wishlistLoadingId, setWishlistLoadingId] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionError, setActionError] = useState("");
+const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -134,68 +130,6 @@ export default function DxbloxHomepage() {
         {label}
       </span>
     );
-  };
-
-  const handleToggleWishlist = async (
-    event: any,
-    listing: Listing
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (wishlistLoadingId) return;
-
-    setActionMessage("");
-    setActionError("");
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.id === listing.user_id) {
-      setActionError("You cannot add your own listing to your wishlist.");
-      return;
-    }
-
-    const isWishlisted = wishlistedIds.includes(listing.id);
-
-    setWishlistLoadingId(listing.id);
-
-    try {
-      if (isWishlisted) {
-        const { error } = await supabase
-          .from("wishlist_items")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("listing_id", listing.id);
-
-        if (error) {
-          setActionError("Could not remove from wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => prev.filter((id) => id !== listing.id));
-        setActionMessage("Removed from wishlist.");
-      } else {
-        const { error } = await supabase.from("wishlist_items").insert({
-          user_id: user.id,
-          listing_id: listing.id,
-        });
-
-        if (error) {
-          setActionError("Could not add to wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => [...prev, listing.id]);
-        setActionMessage("Added to wishlist.");
-      }
-    } catch {
-      setActionError("Something went wrong. Please try again.");
-    } finally {
-      setWishlistLoadingId(null);
-    }
   };
 
   return (
@@ -366,18 +300,6 @@ export default function DxbloxHomepage() {
             </p>
           </div>
 
-          {actionError && (
-            <div className="mb-4 rounded-[24px] border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-              {actionError}
-            </div>
-          )}
-
-          {actionMessage && (
-            <div className="mb-4 rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
-              {actionMessage}
-            </div>
-          )}
-
           {loading ? (
             <div className="rounded-[24px] border border-white/10 bg-[#131320] p-6 text-sm text-[#9CA3AF]">
               Loading featured listings...
@@ -389,10 +311,6 @@ export default function DxbloxHomepage() {
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {featuredListings.map((listing) => {
-                const isWishlisted = wishlistedIds.includes(listing.id);
-                const isOwnListing = !!user && user.id === listing.user_id;
-                const isCurrentCardLoading = wishlistLoadingId === listing.id;
-
                 return (
                   <Link
                     key={listing.id}
@@ -424,31 +342,20 @@ export default function DxbloxHomepage() {
                       </div>
                     </div>
 
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={(event) => handleToggleWishlist(event, listing)}
-                        disabled={isCurrentCardLoading || isOwnListing}
-                        className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                          isOwnListing
-                            ? "border border-white/10 bg-white/5 text-white/50"
-                            : isWishlisted
-                            ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                            : "border border-white/10 text-white/90 hover:bg-white/5"
-                        }`}
-                      >
-                        {isOwnListing && "Your listing"}
-                        {!isOwnListing && isCurrentCardLoading && "Saving..."}
-                        {!isOwnListing &&
-                          !isCurrentCardLoading &&
-                          isWishlisted &&
-                          "Remove from wishlist"}
-                        {!isOwnListing &&
-                          !isCurrentCardLoading &&
-                          !isWishlisted &&
-                          "Add to wishlist"}
-                      </button>
-                    </div>
+<div className="mt-4">
+  <WishlistButton
+    listingId={listing.id}
+    listingUserId={listing.user_id}
+    initialIsWishlisted={wishlistedIds.includes(listing.id)}
+    onChanged={(nextValue) => {
+      setWishlistedIds((prev) =>
+        nextValue
+          ? [...new Set([...prev, listing.id])]
+          : prev.filter((id) => id !== listing.id)
+      );
+    }}
+  />
+</div>
                   </Link>
                 );
               })}

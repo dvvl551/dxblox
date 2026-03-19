@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -33,23 +33,19 @@ const GAME_OPTIONS = [
 const STATUS_OPTIONS = ["All statuses", "Available", "Pending", "Sold"] as const;
 
 export default function ListingPage() {
-  const router = useRouter();
   const { user } = useAuth();
 
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionError, setActionError] = useState("");
+const [listings, setListings] = useState<Listing[]>([]);
+const [loading, setLoading] = useState(true);
+const [errorMessage, setErrorMessage] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [selectedGame, setSelectedGame] =
-    useState<(typeof GAME_OPTIONS)[number]>("All games");
-  const [selectedStatus, setSelectedStatus] =
-    useState<(typeof STATUS_OPTIONS)[number]>("All statuses");
+const [search, setSearch] = useState("");
+const [selectedGame, setSelectedGame] =
+  useState<(typeof GAME_OPTIONS)[number]>("All games");
+const [selectedStatus, setSelectedStatus] =
+  useState<(typeof STATUS_OPTIONS)[number]>("All statuses");
 
-  const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
-  const [wishlistLoadingId, setWishlistLoadingId] = useState<string | null>(null);
+const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -151,68 +147,6 @@ export default function ListingPage() {
     }
 
     return "border-white/10 bg-white/5 text-white/75";
-  };
-
-  const handleToggleWishlist = async (
-    event: React.MouseEvent,
-    listing: Listing
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (wishlistLoadingId) return;
-
-    setActionMessage("");
-    setActionError("");
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.id === listing.user_id) {
-      setActionError("You cannot add your own listing to your wishlist.");
-      return;
-    }
-
-    const isWishlisted = wishlistedIds.includes(listing.id);
-
-    setWishlistLoadingId(listing.id);
-
-    try {
-      if (isWishlisted) {
-        const { error } = await supabase
-          .from("wishlist_items")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("listing_id", listing.id);
-
-        if (error) {
-          setActionError("Could not remove from wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => prev.filter((id) => id !== listing.id));
-        setActionMessage("Removed from wishlist.");
-      } else {
-        const { error } = await supabase.from("wishlist_items").insert({
-          user_id: user.id,
-          listing_id: listing.id,
-        });
-
-        if (error) {
-          setActionError("Could not add to wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => [...prev, listing.id]);
-        setActionMessage("Added to wishlist.");
-      }
-    } catch {
-      setActionError("Something went wrong. Please try again.");
-    } finally {
-      setWishlistLoadingId(null);
-    }
   };
 
   return (
@@ -335,18 +269,6 @@ export default function ListingPage() {
             </div>
           )}
 
-          {actionError && (
-            <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {actionError}
-            </div>
-          )}
-
-          {actionMessage && (
-            <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-              {actionMessage}
-            </div>
-          )}
-
           {loading ? (
             <div className="rounded-[30px] border border-white/10 bg-[#131320] px-6 py-8 text-sm text-[#9CA3AF]">
               Loading listings...
@@ -358,9 +280,6 @@ export default function ListingPage() {
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {filteredListings.map((listing) => {
-                const isWishlisted = wishlistedIds.includes(listing.id);
-                const isOwnListing = !!user && user.id === listing.user_id;
-                const isCurrentCardLoading = wishlistLoadingId === listing.id;
 
                 return (
                   <Link
@@ -400,23 +319,18 @@ export default function ListingPage() {
                     </div>
 
 <div className="mt-4">
-  <button
-    type="button"
-    onClick={(event) => handleToggleWishlist(event, listing)}
-    disabled={isCurrentCardLoading || isOwnListing}
-    className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-      isOwnListing
-        ? "border border-white/10 bg-white/5 text-white/50"
-        : isWishlisted
-        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-        : "border border-white/10 text-white/90 hover:bg-white/5"
-    }`}
-  >
-    {isOwnListing && "Your listing"}
-    {!isOwnListing && isCurrentCardLoading && "Saving..."}
-    {!isOwnListing && !isCurrentCardLoading && isWishlisted && "Remove from wishlist"}
-    {!isOwnListing && !isCurrentCardLoading && !isWishlisted && "Add to wishlist"}
-  </button>
+  <WishlistButton
+    listingId={listing.id}
+    listingUserId={listing.user_id}
+    initialIsWishlisted={wishlistedIds.includes(listing.id)}
+    onChanged={(nextValue) => {
+      setWishlistedIds((prev) =>
+        nextValue
+          ? [...new Set([...prev, listing.id])]
+          : prev.filter((id) => id !== listing.id)
+      );
+    }}
+  />
 </div>
                   </Link>
                 );
