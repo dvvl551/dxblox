@@ -37,12 +37,17 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [listingId, setListingId] = useState<string>("");
+  const [listingId, setListingId] = useState("");
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  const [pageError, setPageError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
@@ -59,7 +64,8 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
     const fetchListing = async () => {
       setLoading(true);
-      setErrorMessage("");
+      setPageError("");
+      setActionError("");
       setActionMessage("");
 
       const { data: listingData, error: listingError } = await supabase
@@ -71,7 +77,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         .single();
 
       if (listingError || !listingData) {
-        setErrorMessage("Listing not found.");
+        setPageError("Listing not found.");
         setListing(null);
         setSeller(null);
         setLoading(false);
@@ -93,6 +99,30 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     fetchListing();
   }, [listingId]);
 
+  useEffect(() => {
+    if (!user || !listingId) {
+      setIsWishlisted(false);
+      return;
+    }
+
+    const checkWishlistStatus = async () => {
+      const { data, error } = await supabase
+        .from("wishlist_items")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("listing_id", listingId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setIsWishlisted(true);
+      } else {
+        setIsWishlisted(false);
+      }
+    };
+
+    checkWishlistStatus();
+  }, [user, listingId]);
+
   const handleDeleteListing = async () => {
     if (!user || !listing) return;
     if (deleting) return;
@@ -104,7 +134,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     if (!confirmed) return;
 
     setDeleting(true);
-    setErrorMessage("");
+    setActionError("");
     setActionMessage("");
 
     try {
@@ -115,7 +145,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         .eq("user_id", user.id);
 
       if (error) {
-        setErrorMessage("Could not delete listing. Please try again.");
+        setActionError("Could not delete listing. Please try again.");
         return;
       }
 
@@ -125,9 +155,64 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         router.push("/dashboard");
       }, 1000);
     } catch {
-      setErrorMessage("Something went wrong. Please try again.");
+      setActionError("Something went wrong. Please try again.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleToggleWishlist = async () => {
+    if (!listing) return;
+    if (wishlistLoading) return;
+
+    setActionError("");
+    setActionMessage("");
+
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.id === listing.user_id) {
+      setActionError("You cannot add your own listing to your wishlist.");
+      return;
+    }
+
+    setWishlistLoading(true);
+
+    try {
+      if (isWishlisted) {
+        const { error } = await supabase
+          .from("wishlist_items")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("listing_id", listing.id);
+
+        if (error) {
+          setActionError("Could not remove from wishlist. Please try again.");
+          return;
+        }
+
+        setIsWishlisted(false);
+        setActionMessage("Removed from wishlist.");
+      } else {
+        const { error } = await supabase.from("wishlist_items").insert({
+          user_id: user.id,
+          listing_id: listing.id,
+        });
+
+        if (error) {
+          setActionError("Could not add to wishlist. Please try again.");
+          return;
+        }
+
+        setIsWishlisted(true);
+        setActionMessage("Added to wishlist.");
+      }
+    } catch {
+      setActionError("Something went wrong. Please try again.");
+    } finally {
+      setWishlistLoading(false);
     }
   };
 
@@ -146,9 +231,9 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
             Loading listing...
           </div>
-        ) : errorMessage || !listing ? (
+        ) : pageError || !listing ? (
           <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
-            {errorMessage || "Listing not found."}
+            {pageError || "Listing not found."}
           </div>
         ) : (
           <>
@@ -167,6 +252,12 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
             {actionMessage && (
               <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
                 {actionMessage}
+              </div>
+            )}
+
+            {actionError && (
+              <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {actionError}
               </div>
             )}
 
@@ -281,9 +372,24 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                         <button className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]">
                           Contact seller
                         </button>
-                        <button className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5">
-                          Add to wishlist
+
+                        <button
+                          type="button"
+                          onClick={handleToggleWishlist}
+                          disabled={wishlistLoading}
+                          className={`rounded-2xl px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isWishlisted
+                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
+                              : "border border-white/10 text-white/90 hover:border-white/20 hover:bg-white/5"
+                          }`}
+                        >
+                          {wishlistLoading
+                            ? "Saving..."
+                            : isWishlisted
+                            ? "Remove from wishlist"
+                            : "Add to wishlist"}
                         </button>
+
                         <button className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15">
                           Report
                         </button>

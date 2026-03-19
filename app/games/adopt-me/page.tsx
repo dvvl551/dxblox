@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 
 type Listing = {
   id: string;
@@ -48,15 +50,23 @@ const wantedItems = [
 ];
 
 export default function AdoptMePage() {
+  const router = useRouter();
+  const { user } = useAuth();
+
   const [listings, setListings] = useState<Listing[]>([]);
   const [sellerMap, setSellerMap] = useState<Record<string, SellerProfile>>({});
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedOfferType, setSelectedOfferType] = useState("");
   const [selectedSort, setSelectedSort] = useState("Most recent");
+
+  const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+  const [wishlistLoadingId, setWishlistLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAdoptMeListings = async () => {
@@ -91,7 +101,7 @@ export default function AdoptMePage() {
 
         const nextSellerMap: Record<string, SellerProfile> = {};
         (sellersData ?? []).forEach((seller) => {
-          nextSellerMap[seller.id] = seller;
+          nextSellerMap[seller.id] = seller as SellerProfile;
         });
 
         setSellerMap(nextSellerMap);
@@ -104,6 +114,30 @@ export default function AdoptMePage() {
 
     fetchAdoptMeListings();
   }, []);
+
+  useEffect(() => {
+    const fetchWishlistIds = async () => {
+      if (!user) {
+        setWishlistedIds([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("wishlist_items")
+        .select("listing_id")
+        .eq("user_id", user.id);
+
+      if (error) {
+        setWishlistedIds([]);
+        return;
+      }
+
+      const ids = (data ?? []).map((item) => item.listing_id as string);
+      setWishlistedIds(ids);
+    };
+
+    fetchWishlistIds();
+  }, [user]);
 
   const featuredListing = listings[0] ?? null;
 
@@ -159,9 +193,68 @@ export default function AdoptMePage() {
       .slice(0, 3);
   }, [listings, sellerMap]);
 
+  const handleToggleWishlist = async (event: any, listing: Listing) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (wishlistLoadingId) return;
+
+    setActionMessage("");
+    setActionError("");
+
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.id === listing.user_id) {
+      setActionError("You cannot add your own listing to your wishlist.");
+      return;
+    }
+
+    const isWishlisted = wishlistedIds.includes(listing.id);
+
+    setWishlistLoadingId(listing.id);
+
+    try {
+      if (isWishlisted) {
+        const { error } = await supabase
+          .from("wishlist_items")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("listing_id", listing.id);
+
+        if (error) {
+          setActionError("Could not remove from wishlist. Please try again.");
+          return;
+        }
+
+        setWishlistedIds((prev) => prev.filter((id) => id !== listing.id));
+        setActionMessage("Removed from wishlist.");
+      } else {
+        const { error } = await supabase.from("wishlist_items").insert({
+          user_id: user.id,
+          listing_id: listing.id,
+        });
+
+        if (error) {
+          setActionError("Could not add to wishlist. Please try again.");
+          return;
+        }
+
+        setWishlistedIds((prev) => [...prev, listing.id]);
+        setActionMessage("Added to wishlist.");
+      }
+    } catch {
+      setActionError("Something went wrong. Please try again.");
+    } finally {
+      setWishlistLoadingId(null);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(236,72,153,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.10),transparent_28%)] pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(236,72,153,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.10),transparent_28%)]" />
 
       <Navbar active="games" />
 
@@ -271,7 +364,21 @@ export default function AdoptMePage() {
           </div>
         </section>
 
-        <section className="mt-8 rounded-[26px] border border-white/10 bg-[#131320] p-5">
+        <section className="mt-6">
+          {actionError && (
+            <div className="mb-4 rounded-[24px] border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+              {actionError}
+            </div>
+          )}
+
+          {actionMessage && (
+            <div className="mb-4 rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
+              {actionMessage}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-[26px] border border-white/10 bg-[#131320] p-5">
           <div className="grid gap-4 lg:grid-cols-6">
             <input
               value={search}
@@ -389,6 +496,9 @@ export default function AdoptMePage() {
                   const sellerName = seller?.username || "Unknown seller";
                   const sellerBadge =
                     seller?.role === "admin" ? "Premium" : "Verified";
+                  const isWishlisted = wishlistedIds.includes(listing.id);
+                  const isOwnListing = !!user && user.id === listing.user_id;
+                  const isCurrentCardLoading = wishlistLoadingId === listing.id;
 
                   return (
                     <div
@@ -401,7 +511,11 @@ export default function AdoptMePage() {
                           <div className="text-lg font-bold">{listing.item_name}</div>
                           <div className="mt-1 text-sm text-[#9CA3AF]">{listing.category}</div>
                         </div>
-                        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${badgeStyle(sellerBadge)}`}>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${badgeStyle(
+                            sellerBadge
+                          )}`}
+                        >
                           {sellerBadge}
                         </span>
                       </div>
@@ -420,10 +534,36 @@ export default function AdoptMePage() {
                         <div className="text-2xl font-bold">{listing.price}</div>
                         <Link
                           href={`/listing/${listing.id}`}
-                          className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]}"
+                          className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
                         >
                           View listing
                         </Link>
+                      </div>
+
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={(event) => handleToggleWishlist(event, listing)}
+                          disabled={isCurrentCardLoading || isOwnListing}
+                          className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isOwnListing
+                              ? "border border-white/10 bg-white/5 text-white/50"
+                              : isWishlisted
+                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
+                              : "border border-white/10 text-white/90 hover:bg-white/5"
+                          }`}
+                        >
+                          {isOwnListing && "Your listing"}
+                          {!isOwnListing && isCurrentCardLoading && "Saving..."}
+                          {!isOwnListing &&
+                            !isCurrentCardLoading &&
+                            isWishlisted &&
+                            "Remove from wishlist"}
+                          {!isOwnListing &&
+                            !isCurrentCardLoading &&
+                            !isWishlisted &&
+                            "Add to wishlist"}
+                        </button>
                       </div>
                     </div>
                   );
@@ -478,9 +618,9 @@ export default function AdoptMePage() {
                       <div className="font-semibold">{item.name}</div>
                       <div className="mt-1 text-sm text-[#9CA3AF]">{item.saves} wishlist saves</div>
                     </div>
-                    <button className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90 transition hover:bg-white/5">
-                      Save
-                    </button>
+                    <span className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/60">
+                      Coming soon
+                    </span>
                   </div>
                 ))}
               </div>
