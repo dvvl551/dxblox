@@ -30,22 +30,27 @@ const GAME_OPTIONS = [
   "Da Hood",
 ] as const;
 
-const STATUS_OPTIONS = ["All statuses", "Available", "Pending", "Sold"] as const;
+const STATUS_OPTIONS = [
+  "All statuses",
+  "Available",
+  "Pending",
+  "Sold",
+] as const;
 
 export default function ListingPage() {
   const { user } = useAuth();
 
-const [listings, setListings] = useState<Listing[]>([]);
-const [loading, setLoading] = useState(true);
-const [errorMessage, setErrorMessage] = useState("");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-const [search, setSearch] = useState("");
-const [selectedGame, setSelectedGame] =
-  useState<(typeof GAME_OPTIONS)[number]>("All games");
-const [selectedStatus, setSelectedStatus] =
-  useState<(typeof STATUS_OPTIONS)[number]>("All statuses");
+  const [search, setSearch] = useState("");
+  const [selectedGame, setSelectedGame] =
+    useState<(typeof GAME_OPTIONS)[number]>("All games");
+  const [selectedStatus, setSelectedStatus] =
+    useState<(typeof STATUS_OPTIONS)[number]>("All statuses");
 
-const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+  const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -66,7 +71,7 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
         return;
       }
 
-      setListings(data ?? []);
+      setListings((data ?? []) as Listing[]);
       setLoading(false);
     };
 
@@ -279,19 +284,19 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filteredListings.map((listing) => {
-
-                return (
-                  <Link
-                    key={listing.id}
-                    href={`/listing/${listing.id}`}
-                    className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                  >
+              {filteredListings.map((listing) => (
+                <article
+                  key={listing.id}
+                  className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                >
+                  <Link href={`/listing/${listing.id}`} className="block">
                     <div className="h-44 rounded-[18px] border border-white/8 bg-white/5" />
 
                     <div className="mt-4 flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-lg font-bold">{listing.item_name}</div>
+                        <div className="text-lg font-bold">
+                          {listing.item_name}
+                        </div>
                         <div className="mt-1 text-sm text-[#9CA3AF]">
                           {listing.game} • {listing.category}
                         </div>
@@ -310,31 +315,35 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
                       <span className="text-[#9CA3AF]">Offer type</span>
                       <span className="font-medium">{listing.offer_type}</span>
                     </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="text-2xl font-bold">{listing.price}</div>
-                      <div className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]">
-                        View listing
-                      </div>
-                    </div>
-
-<div className="mt-4">
-  <WishlistButton
-    listingId={listing.id}
-    listingUserId={listing.user_id}
-    initialIsWishlisted={wishlistedIds.includes(listing.id)}
-    onChanged={(nextValue) => {
-      setWishlistedIds((prev) =>
-        nextValue
-          ? [...new Set([...prev, listing.id])]
-          : prev.filter((id) => id !== listing.id)
-      );
-    }}
-  />
-</div>
                   </Link>
-                );
-              })}
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <div className="text-2xl font-bold">{listing.price}</div>
+
+                    <Link
+                      href={`/listing/${listing.id}`}
+                      className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                    >
+                      View listing
+                    </Link>
+                  </div>
+
+                  <div className="mt-4">
+                    <WishlistButton
+                      listingId={listing.id}
+                      listingUserId={listing.user_id}
+                      initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                      onChanged={(nextValue) => {
+                        setWishlistedIds((prev) =>
+                          nextValue
+                            ? [...new Set([...prev, listing.id])]
+                            : prev.filter((id) => id !== listing.id)
+                        );
+                      }}
+                    />
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>

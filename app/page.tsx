@@ -16,6 +16,7 @@ type Listing = {
   price: string;
   status: string;
   created_at: string;
+  image_url: string | null;
 };
 
 const GAME_IMAGE_MAP: Record<string, string> = {
@@ -50,17 +51,18 @@ export default function DxbloxHomepage() {
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-
-const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+  const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchListings = async () => {
       const { data } = await supabase
         .from("listings")
-        .select("id, user_id, game, category, item_name, price, status, created_at")
+        .select(
+          "id, user_id, game, category, item_name, price, status, created_at, image_url"
+        )
         .order("created_at", { ascending: false });
 
-      setListings(data ?? []);
+      setListings((data ?? []) as Listing[]);
       setLoading(false);
     };
 
@@ -132,6 +134,34 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
     );
   };
 
+  const ListingImage = ({
+    src,
+    alt,
+    className,
+  }: {
+    src: string | null;
+    alt: string;
+    className?: string;
+  }) => {
+    if (!src) {
+      return (
+        <div
+          className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className || ""}`}
+        >
+          No image
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={`border border-white/8 object-cover ${className || ""}`}
+      />
+    );
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.12),transparent_28%)]" />
@@ -154,8 +184,8 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
             </p>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#9CA3AF]">
-              Discover real listings for popular Roblox games, find trusted sellers
-              and keep your wishlist organized in one clean place.
+              Discover real listings for popular Roblox games, find trusted
+              sellers and keep your wishlist organized in one clean place.
             </p>
 
             <div className="mt-8 flex max-w-2xl items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl shadow-black/20">
@@ -202,7 +232,11 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
           <div className="rounded-[28px] border border-white/10 bg-[#131320] p-5 shadow-2xl shadow-violet-950/20">
             <div className="rounded-[22px] bg-gradient-to-br from-violet-500/20 to-blue-500/10 p-5">
-              <div className="h-56 rounded-2xl border border-white/10 bg-black/20" />
+              <ListingImage
+                src={featuredListing?.image_url ?? null}
+                alt={featuredListing?.item_name || "Featured listing"}
+                className="h-56 w-full rounded-2xl bg-black/20"
+              />
             </div>
 
             <div className="mt-5 flex items-start justify-between gap-4">
@@ -257,7 +291,8 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
           <div className="mb-6">
             <h2 className="text-3xl font-bold tracking-tight">Popular games</h2>
             <p className="mt-2 text-[#9CA3AF]">
-              Browse listings from the most active Roblox communities on Dxblox.
+              Browse listings from the most active Roblox communities on
+              Dxblox.
             </p>
           </div>
 
@@ -282,7 +317,9 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
                   <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#9CA3AF]">
                     {game.desc}
                   </p>
-                  <div className="mt-3 text-xs text-violet-300">{game.listings}</div>
+                  <div className="mt-3 text-xs text-violet-300">
+                    {game.listings}
+                  </div>
                   <div className="mt-5 w-full rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-center text-sm font-semibold text-white/90 transition group-hover:bg-white/5">
                     View listings
                   </div>
@@ -294,7 +331,9 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
         <section className="py-10">
           <div className="mb-6">
-            <h2 className="text-3xl font-bold tracking-tight">Featured listings</h2>
+            <h2 className="text-3xl font-bold tracking-tight">
+              Featured listings
+            </h2>
             <p className="mt-2 text-[#9CA3AF]">
               Latest real offers from Dxblox users.
             </p>
@@ -310,18 +349,23 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {featuredListings.map((listing) => {
-                return (
-                  <Link
-                    key={listing.id}
-                    href={`/listing/${listing.id}`}
-                    className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                  >
-                    <div className="h-44 rounded-[18px] border border-white/8 bg-white/5" />
+              {featuredListings.map((listing) => (
+                <article
+                  key={listing.id}
+                  className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                >
+                  <Link href={`/listing/${listing.id}`} className="block">
+                    <ListingImage
+                      src={listing.image_url}
+                      alt={listing.item_name}
+                      className="h-44 w-full rounded-[18px]"
+                    />
 
                     <div className="mt-4 flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-lg font-bold">{listing.item_name}</div>
+                        <div className="text-lg font-bold">
+                          {listing.item_name}
+                        </div>
                         <div className="mt-1 text-sm text-[#9CA3AF]">
                           {listing.game}
                         </div>
@@ -334,31 +378,35 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
                       <span className="text-[#9CA3AF]">Category</span>
                       <span className="font-medium">{listing.category}</span>
                     </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="text-2xl font-bold">{listing.price}</div>
-                      <div className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]">
-                        View listing
-                      </div>
-                    </div>
-
-<div className="mt-4">
-  <WishlistButton
-    listingId={listing.id}
-    listingUserId={listing.user_id}
-    initialIsWishlisted={wishlistedIds.includes(listing.id)}
-    onChanged={(nextValue) => {
-      setWishlistedIds((prev) =>
-        nextValue
-          ? [...new Set([...prev, listing.id])]
-          : prev.filter((id) => id !== listing.id)
-      );
-    }}
-  />
-</div>
                   </Link>
-                );
-              })}
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <div className="text-2xl font-bold">{listing.price}</div>
+
+                    <Link
+                      href={`/listing/${listing.id}`}
+                      className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                    >
+                      View listing
+                    </Link>
+                  </div>
+
+                  <div className="mt-4">
+                    <WishlistButton
+                      listingId={listing.id}
+                      listingUserId={listing.user_id}
+                      initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                      onChanged={(nextValue) => {
+                        setWishlistedIds((prev) =>
+                          nextValue
+                            ? [...new Set([...prev, listing.id])]
+                            : prev.filter((id) => id !== listing.id)
+                        );
+                      }}
+                    />
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>
@@ -405,8 +453,8 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
                 Track what you want
               </h2>
               <p className="mt-4 max-w-xl leading-7 text-[#9CA3AF]">
-                Build your wishlist and keep your search clean across your favorite
-                Roblox games.
+                Build your wishlist and keep your search clean across your
+                favorite Roblox games.
               </p>
               <Link
                 href="/wishlist"
@@ -429,7 +477,9 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
                   >
                     <div>
                       <div className="font-semibold">{listing.item_name}</div>
-                      <div className="text-sm text-[#9CA3AF]">{listing.game}</div>
+                      <div className="text-sm text-[#9CA3AF]">
+                        {listing.game}
+                      </div>
                     </div>
                     <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
                       {listing.status}
@@ -475,7 +525,8 @@ const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
           <div>
             <div className="font-semibold">Legal</div>
             <p className="mt-3 text-sm leading-6 text-[#9CA3AF]">
-              Dxblox is an independent platform and is not affiliated with Roblox.
+              Dxblox is an independent platform and is not affiliated with
+              Roblox.
             </p>
           </div>
         </div>

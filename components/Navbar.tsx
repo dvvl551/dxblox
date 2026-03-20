@@ -6,7 +6,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 
 type NavbarProps = {
-  active?: "home" | "games" | "listing" | "wishlist" | "premium" | "dashboard";
+  active?:
+    | "home"
+    | "games"
+    | "listing"
+    | "wishlist"
+    | "premium"
+    | "dashboard"
+    | "admin";
 };
 
 export default function Navbar({ active }: NavbarProps) {
@@ -35,6 +42,8 @@ export default function Navbar({ active }: NavbarProps) {
     "Account";
 
   const isAdmin = profile?.role === "admin";
+  const avatarUrl = profile?.avatar_url || null;
+  const initial = displayName[0]?.toUpperCase() || "A";
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0B0B12]/80 backdrop-blur-xl">
@@ -74,6 +83,12 @@ export default function Navbar({ active }: NavbarProps) {
             <Link href="/dashboard" className={desktopLinkClass("dashboard")}>
               Dashboard
             </Link>
+
+            {isAdmin && (
+              <Link href="/admin/reviews" className={desktopLinkClass("admin")}>
+                Admin
+              </Link>
+            )}
           </nav>
 
           <div className="hidden items-center gap-3 sm:flex">
@@ -90,17 +105,33 @@ export default function Navbar({ active }: NavbarProps) {
               <>
                 <Link
                   href="/profile"
-                  className="flex max-w-[180px] items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
+                  className="flex max-w-[220px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
                 >
-                  <span className="truncate text-sm font-medium text-white/90">
-                    {displayName}
-                  </span>
-
-                  {isAdmin && (
-                    <span className="shrink-0 rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300">
-                      Admin
-                    </span>
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={displayName}
+                      className="h-10 w-10 rounded-xl object-cover border border-white/10"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                      {initial}
+                    </div>
                   )}
+
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-white/90">
+                      {displayName}
+                    </div>
+
+                    {isAdmin && (
+                      <div className="mt-1">
+                        <span className="shrink-0 rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300">
+                          Admin
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </Link>
 
                 <button
@@ -160,6 +191,13 @@ export default function Navbar({ active }: NavbarProps) {
           <Link href="/dashboard" className={mobileLinkClass("dashboard")}>
             Dashboard
           </Link>
+
+          {isAdmin && (
+            <Link href="/admin/reviews" className={mobileLinkClass("admin")}>
+              Admin
+            </Link>
+          )}
+
           <Link
             href="/create-listing"
             className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition"

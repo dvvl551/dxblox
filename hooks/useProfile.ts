@@ -9,6 +9,7 @@ type Profile = {
   username: string | null;
   bio: string | null;
   role: string;
+  avatar_url: string | null;
   created_at: string;
 };
 
@@ -29,7 +30,7 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, username, bio, role, created_at")
+        .select("id, username, bio, role, avatar_url, created_at")
         .eq("id", user.id)
         .single();
 
@@ -39,7 +40,7 @@ export function useProfile() {
         return;
       }
 
-      setProfile(data);
+      setProfile(data as Profile);
       setLoading(false);
     };
 

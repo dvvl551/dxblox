@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
@@ -30,24 +30,25 @@ const GAME_CATEGORIES: Record<string, string[]> = {
 const OFFER_TYPES = ["For sale", "Trade", "Looking for"] as const;
 const STATUSES = ["Available", "Pending", "Sold"] as const;
 
-const BLOCKED_TERMS = [
-  "discord.gg",
-  "telegram",
-  "porn",
-  "nsfw",
-  "nude",
-];
+const BLOCKED_TERMS = ["discord.gg", "telegram", "porn", "nsfw", "nude"];
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"];
+const MAX_IMAGE_SIZE = 3 * 1024 * 1024;
 
 function containsBlockedTerm(value: string) {
   const lower = value.toLowerCase();
   return BLOCKED_TERMS.some((term) => lower.includes(term));
 }
 
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, "-").toLowerCase();
+}
+
 export default function EditListingPage({ params }: EditListingPageProps) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
-  const [listingId, setListingId] = useState("");
+  const { id: listingId } = use(params);
+
   const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -60,18 +61,11 @@ export default function EditListingPage({ params }: EditListingPageProps) {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("Available");
   const [description, setDescription] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
-  useEffect(() => {
-    const loadParams = async () => {
-      const resolvedParams = await params;
-      setListingId(resolvedParams.id);
-    };
-
-    loadParams();
-  }, [params]);
 
   const availableCategories = useMemo(() => {
     if (!game) return [];
@@ -112,6 +106,28 @@ export default function EditListingPage({ params }: EditListingPageProps) {
     if (successMessage) setSuccessMessage("");
   };
 
+  const handleImageChange = (file: File | null) => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!file) {
+      setSelectedImage(null);
+      return;
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setErrorMessage("Only JPG and PNG images are allowed.");
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setErrorMessage("Image size must be 3 MB or less.");
+      return;
+    }
+
+    setSelectedImage(file);
+  };
+
   useEffect(() => {
     const fetchListing = async () => {
       if (!listingId) return;
@@ -130,7 +146,7 @@ export default function EditListingPage({ params }: EditListingPageProps) {
       const { data, error } = await supabase
         .from("listings")
         .select(
-          "id, user_id, game, category, item_name, price, offer_type, status, description"
+          "id, user_id, game, category, item_name, price, offer_type, status, description, image_url"
         )
         .eq("id", listingId)
         .eq("user_id", user.id)
@@ -156,6 +172,7 @@ export default function EditListingPage({ params }: EditListingPageProps) {
           : "Available"
       );
       setDescription(data.description ?? "");
+      setCurrentImageUrl(data.image_url ?? null);
       setConfirmed(true);
 
       if (data.offer_type === "For sale" && data.price) {
@@ -273,26 +290,55 @@ export default function EditListingPage({ params }: EditListingPageProps) {
     try {
       setLoading(true);
 
-      const { error } = await supabase
-        .from("listings")
-        .update({
-          game,
-          category,
-          item_name: trimmedItemName,
-          price: finalPrice,
-          offer_type: offerType,
-          status,
-          description: trimmedDescription || null,
-        })
-        .eq("id", listingId)
-        .eq("user_id", user.id);
+      let uploadedImageUrl = currentImageUrl;
+
+      if (selectedImage) {
+        const fileExt = selectedImage.type === "image/png" ? "png" : "jpg";
+        const safeName = sanitizeFileName(selectedImage.name);
+        const filePath = `${user.id}/${Date.now()}-${safeName || `image.${fileExt}`}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("listing-images")
+          .upload(filePath, selectedImage, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: selectedImage.type,
+          });
+
+        if (uploadError) {
+          setErrorMessage("Could not upload image. Please try again.");
+          return;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("listing-images")
+          .getPublicUrl(filePath);
+
+        uploadedImageUrl = publicUrlData.publicUrl;
+      }
+
+      const { error } = await supabase.from("listing_submissions").insert({
+        listing_id: listingId,
+        user_id: user.id,
+        submission_type: "edit",
+        review_status: "pending",
+        game,
+        category,
+        item_name: trimmedItemName,
+        price: finalPrice,
+        offer_type: offerType,
+        status,
+        description: trimmedDescription || null,
+        image_url: uploadedImageUrl,
+        proof_url: null,
+      });
 
       if (error) {
-        setErrorMessage("Could not update listing. Please try again.");
+        setErrorMessage("Could not send update for review. Please try again.");
         return;
       }
 
-      setSuccessMessage("Listing updated successfully.");
+      setSuccessMessage("Listing update sent for review successfully.");
 
       setTimeout(() => {
         router.push("/dashboard");
@@ -338,8 +384,8 @@ export default function EditListingPage({ params }: EditListingPageProps) {
                   Update your listing
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9CA3AF]">
-                  Change your item details and save your updated listing on
-                  Dxblox.
+                  Your changes will be sent for admin review before they replace
+                  the public listing.
                 </p>
               </div>
 
@@ -512,6 +558,43 @@ export default function EditListingPage({ params }: EditListingPageProps) {
                   </div>
                 </div>
 
+                <div>
+                  <label className="mb-2 block text-sm text-[#9CA3AF]">
+                    Upload image
+                  </label>
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 px-4 py-6">
+                    {currentImageUrl && !selectedImage && (
+                      <div className="mb-4">
+                        <div className="mb-2 text-sm text-[#9CA3AF]">
+                          Current image
+                        </div>
+                        <img
+                          src={currentImageUrl}
+                          alt="Current listing"
+                          className="h-40 w-full rounded-2xl object-cover border border-white/10"
+                        />
+                      </div>
+                    )}
+
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      onChange={(e) =>
+                        handleImageChange(e.target.files?.[0] ?? null)
+                      }
+                      className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
+                    />
+                    <p className="mt-3 text-sm text-[#9CA3AF]">
+                      Allowed: JPG, JPEG, PNG. Max size: 3 MB.
+                    </p>
+                    {selectedImage && (
+                      <p className="mt-2 text-sm text-emerald-300">
+                        Selected: {selectedImage.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <label className="flex items-start gap-3 text-sm text-[#9CA3AF]">
                   <input
                     type="checkbox"
@@ -547,7 +630,7 @@ export default function EditListingPage({ params }: EditListingPageProps) {
                     disabled={loading}
                     className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {loading ? "Saving..." : "Save changes"}
+                    {loading ? "Sending..." : "Send changes for review"}
                   </button>
 
                   <Link
@@ -562,21 +645,34 @@ export default function EditListingPage({ params }: EditListingPageProps) {
 
             <aside className="space-y-5">
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                <h2 className="text-xl font-bold">Edit tips</h2>
+                <h2 className="text-xl font-bold">Review flow</h2>
                 <ul className="mt-4 space-y-3 text-sm leading-6 text-[#9CA3AF]">
                   <li className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                    Keep the item name clear and accurate
+                    Your public listing stays unchanged for now
                   </li>
                   <li className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                    Make sure the category matches the selected game
+                    Admin reviews your update request
                   </li>
                   <li className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                    Update the status when the item is pending or sold
+                    Approved edits replace the public version
                   </li>
                   <li className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                    Avoid unsafe links or blocked content
+                    Rejected edits do not overwrite your listing
                   </li>
                 </ul>
+              </div>
+
+              <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xl font-bold">Image safety</h3>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85">
+                    JPG / PNG only
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-white/85">
+                  Uploaded images are limited to JPG and PNG formats and still
+                  go through review before publication.
+                </p>
               </div>
 
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">

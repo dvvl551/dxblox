@@ -14,6 +14,26 @@ type Listing = {
   price: string;
   status: string;
   created_at: string;
+  image_url: string | null;
+};
+
+type Submission = {
+  id: string;
+  listing_id: string | null;
+  user_id: string;
+  submission_type: "create" | "edit";
+  review_status: "pending" | "approved" | "rejected";
+  game: string;
+  category: string;
+  item_name: string;
+  price: string;
+  offer_type: string;
+  status: string;
+  description: string | null;
+  image_url: string | null;
+  proof_url: string | null;
+  review_note: string | null;
+  created_at: string;
 };
 
 export default function DashboardPage() {
@@ -21,7 +41,11 @@ export default function DashboardPage() {
   const { profile } = useProfile();
 
   const [listings, setListings] = useState<Listing[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+
   const [loadingListings, setLoadingListings] = useState(true);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -38,7 +62,7 @@ export default function DashboardPage() {
 
       const { data, error } = await supabase
         .from("listings")
-        .select("id, game, item_name, price, status, created_at")
+        .select("id, game, item_name, price, status, created_at, image_url")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -49,11 +73,45 @@ export default function DashboardPage() {
         return;
       }
 
-      setListings(data ?? []);
+      setListings((data ?? []) as Listing[]);
       setLoadingListings(false);
     };
 
     fetchListings();
+  }, [user, authLoading]);
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      if (authLoading) return;
+
+      if (!user) {
+        setSubmissions([]);
+        setLoadingSubmissions(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("listing_submissions")
+        .select(
+          "id, listing_id, user_id, submission_type, review_status, game, category, item_name, price, offer_type, status, description, image_url, proof_url, review_note, created_at"
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setErrorMessage((prev) =>
+          prev || "Could not load your review requests."
+        );
+        setSubmissions([]);
+        setLoadingSubmissions(false);
+        return;
+      }
+
+      setSubmissions((data ?? []) as Submission[]);
+      setLoadingSubmissions(false);
+    };
+
+    fetchSubmissions();
   }, [user, authLoading]);
 
   const activeCount = useMemo(
@@ -61,7 +119,7 @@ export default function DashboardPage() {
     [listings]
   );
 
-  const pendingCount = useMemo(
+  const pendingLiveCount = useMemo(
     () => listings.filter((listing) => listing.status === "Pending").length,
     [listings]
   );
@@ -71,19 +129,35 @@ export default function DashboardPage() {
     [listings]
   );
 
+  const pendingReviewCount = useMemo(
+    () => submissions.filter((submission) => submission.review_status === "pending").length,
+    [submissions]
+  );
+
+  const rejectedReviewCount = useMemo(
+    () => submissions.filter((submission) => submission.review_status === "rejected").length,
+    [submissions]
+  );
+
   const latestGame = useMemo(() => {
     if (listings.length === 0) return "No listings yet";
     return listings[0].game;
   }, [listings]);
 
   const latestActivity = useMemo(() => {
-    if (listings.length === 0) return "No recent listing activity";
-    return `Published ${listings[0].item_name}`;
-  }, [listings]);
+    if (submissions.length > 0) {
+      return `Last request: ${submissions[0].item_name}`;
+    }
+    if (listings.length > 0) {
+      return `Published ${listings[0].item_name}`;
+    }
+    return "No recent activity";
+  }, [listings, submissions]);
 
   const accountType = profile?.role === "admin" ? "Admin" : "User";
+  const isAdmin = profile?.role === "admin";
 
-  const statusStyle = (status: string) => {
+  const liveStatusStyle = (status: string) => {
     if (status === "Available") {
       return "border-emerald-500/30 bg-emerald-500/15 text-emerald-300";
     }
@@ -93,6 +167,22 @@ export default function DashboardPage() {
     }
 
     if (status === "Sold") {
+      return "border-red-500/30 bg-red-500/15 text-red-300";
+    }
+
+    return "border-white/10 bg-white/5 text-white/75";
+  };
+
+  const reviewStatusStyle = (status: string) => {
+    if (status === "pending") {
+      return "border-orange-500/30 bg-orange-500/15 text-orange-300";
+    }
+
+    if (status === "approved") {
+      return "border-emerald-500/30 bg-emerald-500/15 text-emerald-300";
+    }
+
+    if (status === "rejected") {
       return "border-red-500/30 bg-red-500/15 text-red-300";
     }
 
@@ -134,6 +224,36 @@ export default function DashboardPage() {
     }
   };
 
+  const ListingImage = ({
+    src,
+    alt,
+    small = false,
+  }: {
+    src: string | null;
+    alt: string;
+    small?: boolean;
+  }) => {
+    const sizeClass = small ? "h-24" : "h-36";
+
+    if (!src) {
+      return (
+        <div
+          className={`flex ${sizeClass} items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]`}
+        >
+          No image
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={`${sizeClass} w-full rounded-[18px] border border-white/8 object-cover`}
+      />
+    );
+  };
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
@@ -162,26 +282,26 @@ export default function DashboardPage() {
                     Dashboard
                   </h1>
                   <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-300">
-                    {profile?.role === "admin" ? "Admin view" : "Seller view"}
+                    {isAdmin ? "Admin view" : "Seller view"}
                   </span>
                 </div>
 
                 <p className="mt-3 max-w-xl text-sm leading-6 text-[#9CA3AF]">
-                  Manage your listings, keep track of your activity and get a
-                  quick view of your Dxblox account.
+                  Manage your live listings and track every request sent for
+                  review.
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Active listings</div>
+                <div className="text-xs text-[#9CA3AF]">Active</div>
                 <div className="mt-1 text-2xl font-bold">{activeCount}</div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Pending</div>
-                <div className="mt-1 text-2xl font-bold">{pendingCount}</div>
+                <div className="text-xs text-[#9CA3AF]">Live pending</div>
+                <div className="mt-1 text-2xl font-bold">{pendingLiveCount}</div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
@@ -190,8 +310,13 @@ export default function DashboardPage() {
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Total listings</div>
-                <div className="mt-1 text-2xl font-bold">{listings.length}</div>
+                <div className="text-xs text-[#9CA3AF]">Review pending</div>
+                <div className="mt-1 text-2xl font-bold">{pendingReviewCount}</div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs text-[#9CA3AF]">Rejected</div>
+                <div className="mt-1 text-2xl font-bold">{rejectedReviewCount}</div>
               </div>
             </div>
 
@@ -209,14 +334,23 @@ export default function DashboardPage() {
               >
                 Open wishlist
               </Link>
+
+              {isAdmin && (
+                <Link
+                  href="/admin/reviews"
+                  className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
+                >
+                  Review requests
+                </Link>
+              )}
             </div>
           </div>
 
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
             <h2 className="text-2xl font-bold">Quick overview</h2>
             <p className="mt-4 leading-7 text-[#9CA3AF]">
-              This dashboard gives a clean summary of your real account activity
-              and listings from Supabase.
+              This dashboard now shows both your public listings and the
+              moderation flow of your requests.
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -246,98 +380,205 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
-            <div className="mb-5 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-bold">My listings</h2>
-                <p className="mt-2 text-[#9CA3AF]">
-                  Track your current posts and their status.
-                </p>
+          <div className="space-y-8">
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
+              <div className="mb-5 flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">My live listings</h2>
+                  <p className="mt-2 text-[#9CA3AF]">
+                    Your currently published listings.
+                  </p>
+                </div>
               </div>
+
+              {errorMessage && (
+                <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {errorMessage}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                  {successMessage}
+                </div>
+              )}
+
+              {loadingListings ? (
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
+                  Loading your listings...
+                </div>
+              ) : listings.length === 0 ? (
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
+                  You do not have any live listings yet.
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {listings.map((listing) => (
+                    <div
+                      key={listing.id}
+                      className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                    >
+                      <Link href={`/listing/${listing.id}`} className="block">
+                        <ListingImage src={listing.image_url} alt={listing.item_name} />
+
+                        <div className="mt-4 flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-lg font-bold">
+                              {listing.item_name}
+                            </div>
+                            <div className="mt-1 text-sm text-[#9CA3AF]">
+                              {listing.game}
+                            </div>
+                          </div>
+
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${liveStatusStyle(
+                              listing.status
+                            )}`}
+                          >
+                            {listing.status}
+                          </span>
+                        </div>
+                      </Link>
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="text-xl font-bold">{listing.price}</div>
+
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/listing/${listing.id}`}
+                            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
+                          >
+                            View
+                          </Link>
+
+                          <Link
+                            href={`/edit-listing/${listing.id}`}
+                            className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/15"
+                          >
+                            Edit
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteListing(listing.id)}
+                            disabled={deletingId === listing.id}
+                            className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingId === listing.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {errorMessage && (
-              <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {errorMessage}
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
+              <div className="mb-5 flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">My review requests</h2>
+                  <p className="mt-2 text-[#9CA3AF]">
+                    Track all your create and edit requests.
+                  </p>
+                </div>
               </div>
-            )}
 
-            {successMessage && (
-              <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                {successMessage}
-              </div>
-            )}
-
-            {loadingListings ? (
-              <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
-                Loading your listings...
-              </div>
-            ) : listings.length === 0 ? (
-              <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
-                You do not have any listings yet.
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {listings.map((listing) => (
-                  <div
-                    key={listing.id}
-                    className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                  >
-                    <Link href={`/listing/${listing.id}`} className="block">
-                      <div className="h-36 rounded-[18px] border border-white/8 bg-black/20" />
-
-                      <div className="mt-4 flex items-start justify-between gap-4">
+              {loadingSubmissions ? (
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
+                  Loading your review requests...
+                </div>
+              ) : submissions.length === 0 ? (
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
+                  You have not sent any review requests yet.
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {submissions.map((submission) => (
+                    <div
+                      key={submission.id}
+                      className="rounded-[24px] border border-white/10 bg-white/5 p-4"
+                    >
+                      <div className="grid gap-4 md:grid-cols-[160px_1fr]">
                         <div>
-                          <div className="text-lg font-bold">
-                            {listing.item_name}
-                          </div>
-                          <div className="mt-1 text-sm text-[#9CA3AF]">
-                            {listing.game}
-                          </div>
+                          <ListingImage
+                            src={submission.image_url}
+                            alt={submission.item_name}
+                            small
+                          />
                         </div>
 
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
-                            listing.status
-                          )}`}
-                        >
-                          {listing.status}
-                        </span>
+                        <div>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap gap-2">
+                                <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-300">
+                                  {submission.submission_type}
+                                </span>
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${reviewStatusStyle(
+                                    submission.review_status
+                                  )}`}
+                                >
+                                  {submission.review_status}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 text-lg font-bold">
+                                {submission.item_name}
+                              </div>
+                              <div className="mt-1 text-sm text-[#9CA3AF]">
+                                {submission.game} • {submission.category}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-xs text-[#9CA3AF]">Price</div>
+                              <div className="mt-1 text-lg font-bold">
+                                {submission.price}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+                              <div className="text-xs text-[#9CA3AF]">Offer type</div>
+                              <div className="mt-1 font-medium">
+                                {submission.offer_type}
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+                              <div className="text-xs text-[#9CA3AF]">Listing status</div>
+                              <div className="mt-1 font-medium">
+                                {submission.status}
+                              </div>
+                            </div>
+                          </div>
+
+                          {submission.review_note && (
+                            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+                              <div className="text-xs text-red-300">
+                                Review note
+                              </div>
+                              <div className="mt-2 text-sm text-red-200">
+                                {submission.review_note}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-4 text-sm text-[#9CA3AF]">
+                            Sent on{" "}
+                            {new Date(submission.created_at).toLocaleString()}
+                          </div>
+                        </div>
                       </div>
-                    </Link>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="text-xl font-bold">{listing.price}</div>
-
-<div className="flex items-center gap-2">
-  <Link
-    href={`/listing/${listing.id}`}
-    className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
-  >
-    View
-  </Link>
-
-  <Link
-    href={`/edit-listing/${listing.id}`}
-    className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/15"
-  >
-    Edit
-  </Link>
-
-  <button
-    type="button"
-    onClick={() => handleDeleteListing(listing.id)}
-    disabled={deletingId === listing.id}
-    className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    {deletingId === listing.id ? "Deleting..." : "Delete"}
-  </button>
-</div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <aside className="space-y-5">
@@ -364,6 +605,15 @@ export default function DashboardPage() {
                 >
                   Browse games
                 </Link>
+
+                {isAdmin && (
+                  <Link
+                    href="/admin/reviews"
+                    className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
+                  >
+                    Open admin reviews
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -377,13 +627,13 @@ export default function DashboardPage() {
 
               <ul className="mt-4 space-y-3 text-sm leading-6 text-white/85">
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Your dashboard is now reading real listings from Supabase
+                  Live listings and review requests are now separated clearly
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Image and proof uploads can be added next with Supabase Storage
+                  Rejected requests can show an admin note here
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Form logic can be improved next for game-specific categories
+                  Admin accounts can jump directly to the moderation panel
                 </li>
               </ul>
             </div>

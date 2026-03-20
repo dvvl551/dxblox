@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,10 @@ export default function WishlistButton({
   const [loading, setLoading] = useState(false);
 
   const isOwnListing = !!user && user.id === listingUserId;
+
+  useEffect(() => {
+    setIsWishlisted(initialIsWishlisted);
+  }, [initialIsWishlisted, listingId]);
 
   const handleToggleWishlist = async (
     event: React.MouseEvent<HTMLButtonElement>

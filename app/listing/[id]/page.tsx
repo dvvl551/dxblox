@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -37,27 +38,18 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [listingId, setListingId] = useState("");
+  const { id: listingId } = use(params);
+
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [wishlistLoading, setWishlistLoading] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   const [pageError, setPageError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
-
-  useEffect(() => {
-    const loadParams = async () => {
-      const resolvedParams = await params;
-      setListingId(resolvedParams.id);
-    };
-
-    loadParams();
-  }, [params]);
 
   useEffect(() => {
     if (!listingId) return;
@@ -84,7 +76,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         return;
       }
 
-      setListing(listingData);
+      setListing(listingData as Listing);
 
       const { data: sellerData } = await supabase
         .from("profiles")
@@ -92,7 +84,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         .eq("id", listingData.user_id)
         .single();
 
-      setSeller(sellerData ?? null);
+      setSeller((sellerData as SellerProfile) ?? null);
       setLoading(false);
     };
 
@@ -113,11 +105,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         .eq("listing_id", listingId)
         .maybeSingle();
 
-      if (!error && data) {
-        setIsWishlisted(true);
-      } else {
-        setIsWishlisted(false);
-      }
+      setIsWishlisted(!error && !!data);
     };
 
     checkWishlistStatus();
@@ -161,64 +149,37 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     }
   };
 
-  const handleToggleWishlist = async () => {
-    if (!listing) return;
-    if (wishlistLoading) return;
-
-    setActionError("");
-    setActionMessage("");
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.id === listing.user_id) {
-      setActionError("You cannot add your own listing to your wishlist.");
-      return;
-    }
-
-    setWishlistLoading(true);
-
-    try {
-      if (isWishlisted) {
-        const { error } = await supabase
-          .from("wishlist_items")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("listing_id", listing.id);
-
-        if (error) {
-          setActionError("Could not remove from wishlist. Please try again.");
-          return;
-        }
-
-        setIsWishlisted(false);
-        setActionMessage("Removed from wishlist.");
-      } else {
-        const { error } = await supabase.from("wishlist_items").insert({
-          user_id: user.id,
-          listing_id: listing.id,
-        });
-
-        if (error) {
-          setActionError("Could not add to wishlist. Please try again.");
-          return;
-        }
-
-        setIsWishlisted(true);
-        setActionMessage("Added to wishlist.");
-      }
-    } catch {
-      setActionError("Something went wrong. Please try again.");
-    } finally {
-      setWishlistLoading(false);
-    }
-  };
-
   const sellerName = seller?.username || "Unknown seller";
   const isAdminSeller = seller?.role === "admin";
   const isOwner = !!user && !!listing && user.id === listing.user_id;
+
+  const ListingImage = ({
+    src,
+    alt,
+    className,
+  }: {
+    src: string | null;
+    alt: string;
+    className?: string;
+  }) => {
+    if (!src) {
+      return (
+        <div
+          className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className || ""}`}
+        >
+          No image
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={`border border-white/8 object-cover ${className || ""}`}
+      />
+    );
+  };
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -263,30 +224,11 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
             <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                <div className="flex h-[420px] items-end rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(124,92,255,0.14),rgba(61,169,252,0.10))] p-6">
-                  <div>
-                    <div className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
-                      Featured item
-                    </div>
-                    <div className="mt-4 text-sm text-[#C9D2FF]">
-                      {listing.game} • {listing.category}
-                    </div>
-                    <div className="mt-2 text-4xl font-black tracking-tight">
-                      {listing.item_name}
-                    </div>
-                    <p className="mt-3 max-w-lg text-sm leading-6 text-[#9CA3AF]">
-                      Visual uploads are temporarily disabled. This area will
-                      later show the real item image or proof preview.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-4 gap-3">
-                  <div className="h-24 rounded-2xl border border-white/8 bg-white/5" />
-                  <div className="h-24 rounded-2xl border border-white/8 bg-white/5" />
-                  <div className="h-24 rounded-2xl border border-white/8 bg-white/5" />
-                  <div className="h-24 rounded-2xl border border-white/8 bg-white/5" />
-                </div>
+                <ListingImage
+                  src={listing.image_url}
+                  alt={listing.item_name}
+                  className="h-[420px] w-full rounded-[24px]"
+                />
               </div>
 
               <div className="space-y-5">
@@ -369,28 +311,33 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                       </>
                     ) : (
                       <>
-                        <button className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]">
+                        <button
+                          type="button"
+                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                        >
                           Contact seller
                         </button>
 
+                        <WishlistButton
+                          listingId={listing.id}
+                          listingUserId={listing.user_id}
+                          initialIsWishlisted={isWishlisted}
+                          fullWidth={false}
+                          onChanged={(nextValue) => {
+                            setIsWishlisted(nextValue);
+                            setActionMessage(
+                              nextValue
+                                ? "Added to wishlist."
+                                : "Removed from wishlist."
+                            );
+                            setActionError("");
+                          }}
+                        />
+
                         <button
                           type="button"
-                          onClick={handleToggleWishlist}
-                          disabled={wishlistLoading}
-                          className={`rounded-2xl px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                            isWishlisted
-                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                              : "border border-white/10 text-white/90 hover:border-white/20 hover:bg-white/5"
-                          }`}
+                          className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15"
                         >
-                          {wishlistLoading
-                            ? "Saving..."
-                            : isWishlisted
-                            ? "Remove from wishlist"
-                            : "Add to wishlist"}
-                        </button>
-
-                        <button className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15">
                           Report
                         </button>
                       </>

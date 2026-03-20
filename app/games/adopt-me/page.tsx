@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -50,15 +50,12 @@ const wantedItems = [
 ];
 
 export default function AdoptMePage() {
-  const router = useRouter();
   const { user } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [sellerMap, setSellerMap] = useState<Record<string, SellerProfile>>({});
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionError, setActionError] = useState("");
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -66,7 +63,6 @@ export default function AdoptMePage() {
   const [selectedSort, setSelectedSort] = useState("Most recent");
 
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
-  const [wishlistLoadingId, setWishlistLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAdoptMeListings = async () => {
@@ -88,7 +84,7 @@ export default function AdoptMePage() {
         return;
       }
 
-      const adoptMeListings = data ?? [];
+      const adoptMeListings = (data ?? []) as Listing[];
       setListings(adoptMeListings);
 
       const uniqueUserIds = [...new Set(adoptMeListings.map((item) => item.user_id))];
@@ -101,7 +97,8 @@ export default function AdoptMePage() {
 
         const nextSellerMap: Record<string, SellerProfile> = {};
         (sellersData ?? []).forEach((seller) => {
-          nextSellerMap[seller.id] = seller as SellerProfile;
+          const typedSeller = seller as SellerProfile;
+          nextSellerMap[typedSeller.id] = typedSeller;
         });
 
         setSellerMap(nextSellerMap);
@@ -192,65 +189,6 @@ export default function AdoptMePage() {
       .sort((a, b) => b.listings - a.listings)
       .slice(0, 3);
   }, [listings, sellerMap]);
-
-  const handleToggleWishlist = async (event: any, listing: Listing) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (wishlistLoadingId) return;
-
-    setActionMessage("");
-    setActionError("");
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.id === listing.user_id) {
-      setActionError("You cannot add your own listing to your wishlist.");
-      return;
-    }
-
-    const isWishlisted = wishlistedIds.includes(listing.id);
-
-    setWishlistLoadingId(listing.id);
-
-    try {
-      if (isWishlisted) {
-        const { error } = await supabase
-          .from("wishlist_items")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("listing_id", listing.id);
-
-        if (error) {
-          setActionError("Could not remove from wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => prev.filter((id) => id !== listing.id));
-        setActionMessage("Removed from wishlist.");
-      } else {
-        const { error } = await supabase.from("wishlist_items").insert({
-          user_id: user.id,
-          listing_id: listing.id,
-        });
-
-        if (error) {
-          setActionError("Could not add to wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => [...prev, listing.id]);
-        setActionMessage("Added to wishlist.");
-      }
-    } catch {
-      setActionError("Something went wrong. Please try again.");
-    } finally {
-      setWishlistLoadingId(null);
-    }
-  };
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -364,21 +302,7 @@ export default function AdoptMePage() {
           </div>
         </section>
 
-        <section className="mt-6">
-          {actionError && (
-            <div className="mb-4 rounded-[24px] border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-              {actionError}
-            </div>
-          )}
-
-          {actionMessage && (
-            <div className="mb-4 rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
-              {actionMessage}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[26px] border border-white/10 bg-[#131320] p-5">
+        <section className="rounded-[26px] border border-white/10 bg-[#131320] p-5 mt-6">
           <div className="grid gap-4 lg:grid-cols-6">
             <input
               value={search}
@@ -462,7 +386,9 @@ export default function AdoptMePage() {
                 >
                   <div className="h-12 w-12 rounded-2xl bg-pink-500/15" />
                   <div className="mt-4 text-xl font-bold">{cat.name}</div>
-                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#9CA3AF]">{cat.desc}</p>
+                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#9CA3AF]">
+                    {cat.desc}
+                  </p>
                   <div className="mt-4 text-sm text-pink-300">{count} listings</div>
                 </div>
               );
@@ -496,9 +422,6 @@ export default function AdoptMePage() {
                   const sellerName = seller?.username || "Unknown seller";
                   const sellerBadge =
                     seller?.role === "admin" ? "Premium" : "Verified";
-                  const isWishlisted = wishlistedIds.includes(listing.id);
-                  const isOwnListing = !!user && user.id === listing.user_id;
-                  const isCurrentCardLoading = wishlistLoadingId === listing.id;
 
                   return (
                     <div
@@ -541,29 +464,18 @@ export default function AdoptMePage() {
                       </div>
 
                       <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={(event) => handleToggleWishlist(event, listing)}
-                          disabled={isCurrentCardLoading || isOwnListing}
-                          className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                            isOwnListing
-                              ? "border border-white/10 bg-white/5 text-white/50"
-                              : isWishlisted
-                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                              : "border border-white/10 text-white/90 hover:bg-white/5"
-                          }`}
-                        >
-                          {isOwnListing && "Your listing"}
-                          {!isOwnListing && isCurrentCardLoading && "Saving..."}
-                          {!isOwnListing &&
-                            !isCurrentCardLoading &&
-                            isWishlisted &&
-                            "Remove from wishlist"}
-                          {!isOwnListing &&
-                            !isCurrentCardLoading &&
-                            !isWishlisted &&
-                            "Add to wishlist"}
-                        </button>
+                        <WishlistButton
+                          listingId={listing.id}
+                          listingUserId={listing.user_id}
+                          initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                          onChanged={(nextValue) => {
+                            setWishlistedIds((prev) =>
+                              nextValue
+                                ? [...new Set([...prev, listing.id])]
+                                : prev.filter((id) => id !== listing.id)
+                            );
+                          }}
+                        />
                       </div>
                     </div>
                   );
@@ -640,6 +552,6 @@ export default function AdoptMePage() {
 }
 
 function extractPrice(price: string) {
-  const numeric = Number(price.replace(/[^\d.]/g, ""));
+  const numeric = Number(price.replace(/[^0-9.]/g, ""));
   return Number.isNaN(numeric) ? 0 : numeric;
 }

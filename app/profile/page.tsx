@@ -14,7 +14,15 @@ type Listing = {
   price: string;
   status: string;
   created_at: string;
+  image_url?: string | null;
 };
+
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png"];
+const MAX_AVATAR_SIZE = 3 * 1024 * 1024;
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, "-").toLowerCase();
+}
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -22,6 +30,9 @@ export default function ProfilePage() {
 
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
+
   const [saving, setSaving] = useState(false);
 
   const [listings, setListings] = useState<Listing[]>([]);
@@ -33,7 +44,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (profile) {
       setUsername(profile.username ?? "");
-      setBio((profile as { bio?: string | null }).bio ?? "");
+      setBio(profile.bio ?? "");
+      setAvatarUrl(profile.avatar_url ?? null);
     }
   }, [profile]);
 
@@ -49,7 +61,7 @@ export default function ProfilePage() {
 
       const { data, error } = await supabase
         .from("listings")
-        .select("id, item_name, game, price, status, created_at")
+        .select("id, item_name, game, price, status, created_at, image_url")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -59,7 +71,7 @@ export default function ProfilePage() {
         return;
       }
 
-      setListings(data ?? []);
+      setListings((data ?? []) as Listing[]);
       setLoadingListings(false);
     };
 
@@ -90,7 +102,9 @@ export default function ProfilePage() {
 
   const recentActivity = useMemo(() => {
     if (listings.length === 0) return [];
-    return listings.slice(0, 4).map((listing) => `Posted or updated ${listing.item_name}`);
+    return listings
+      .slice(0, 4)
+      .map((listing) => `Posted or updated ${listing.item_name}`);
   }, [listings]);
 
   const badgeStyle = (status: string) => {
@@ -104,6 +118,28 @@ export default function ProfilePage() {
       return "border-red-500/30 bg-red-500/15 text-red-300";
     }
     return "border-white/10 bg-white/5 text-white/75";
+  };
+
+  const handleAvatarChange = (file: File | null) => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!file) {
+      setSelectedAvatar(null);
+      return;
+    }
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setErrorMessage("Only JPG and PNG avatars are allowed.");
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      setErrorMessage("Avatar size must be 3 MB or less.");
+      return;
+    }
+
+    setSelectedAvatar(file);
   };
 
   const handleSaveProfile = async () => {
@@ -143,19 +179,49 @@ export default function ProfilePage() {
     try {
       setSaving(true);
 
+      let nextAvatarUrl = avatarUrl;
+
+      if (selectedAvatar) {
+        const fileExt = selectedAvatar.type === "image/png" ? "png" : "jpg";
+        const safeName = sanitizeFileName(selectedAvatar.name);
+        const filePath = `${user.id}/${Date.now()}-${safeName || `avatar.${fileExt}`}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, selectedAvatar, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: selectedAvatar.type,
+          });
+
+        if (uploadError) {
+          setErrorMessage(uploadError.message || "Could not upload avatar.");
+          return;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        nextAvatarUrl = publicUrlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
           username: cleanUsername,
           bio: cleanBio || null,
+          avatar_url: nextAvatarUrl,
         })
         .eq("id", user.id);
 
-if (error) {
-  setErrorMessage(error.message);
-  return;
-}
+      if (error) {
+        setErrorMessage(error.message || "Could not update profile.");
+        return;
+      }
 
+      setAvatarUrl(nextAvatarUrl);
+      setSelectedAvatar(null);
       setSuccessMessage("Profile updated successfully.");
     } catch {
       setErrorMessage("Something went wrong. Please try again.");
@@ -163,6 +229,13 @@ if (error) {
       setSaving(false);
     }
   };
+
+  const previewAvatar = selectedAvatar
+    ? URL.createObjectURL(selectedAvatar)
+    : avatarUrl;
+
+  const displayInitial =
+    username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U";
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -179,12 +252,20 @@ if (error) {
           <span className="text-white">Profile</span>
         </div>
 
-        <section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
+        <section className="grid items-start gap-8 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
             <div className="flex items-start gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
-                {username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
-              </div>
+              {previewAvatar ? (
+                <img
+                  src={previewAvatar}
+                  alt={username || "Profile avatar"}
+                  className="h-20 w-20 rounded-[24px] border border-white/10 object-cover"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
+                  {displayInitial}
+                </div>
+              )}
 
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-3">
@@ -210,7 +291,9 @@ if (error) {
             <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Active listings</div>
-                <div className="mt-1 text-2xl font-bold">{activeListingsCount}</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {activeListingsCount}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
@@ -249,10 +332,51 @@ if (error) {
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
             <h2 className="text-2xl font-bold">Edit profile</h2>
             <p className="mt-4 leading-7 text-[#9CA3AF]">
-              Update your public seller information.
+              Update your public seller information and avatar.
             </p>
 
             <div className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm text-[#9CA3AF]">
+                  Avatar
+                </label>
+
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-4">
+                  <div className="mb-4 flex items-center gap-4">
+                    {previewAvatar ? (
+                      <img
+                        src={previewAvatar}
+                        alt="Avatar preview"
+                        className="h-20 w-20 rounded-[20px] border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-[20px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
+                        {displayInitial}
+                      </div>
+                    )}
+
+                    <div className="text-sm text-[#9CA3AF]">
+                      JPG / PNG only. Max size: 3 MB.
+                    </div>
+                  </div>
+
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    onChange={(e) =>
+                      handleAvatarChange(e.target.files?.[0] ?? null)
+                    }
+                    className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
+                  />
+
+                  {selectedAvatar && (
+                    <div className="mt-3 text-sm text-emerald-300">
+                      Selected: {selectedAvatar.name}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Username
@@ -345,12 +469,26 @@ if (error) {
                     href={`/listing/${listing.id}`}
                     className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:border-violet-500/30"
                   >
-                    <div className="h-36 rounded-[18px] border border-white/8 bg-black/20" />
+                    {listing.image_url ? (
+                      <img
+                        src={listing.image_url}
+                        alt={listing.item_name}
+                        className="h-36 w-full rounded-[18px] border border-white/8 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-36 items-center justify-center rounded-[18px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
+                        No image
+                      </div>
+                    )}
 
                     <div className="mt-4 flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-lg font-bold">{listing.item_name}</div>
-                        <div className="mt-1 text-sm text-[#9CA3AF]">{listing.game}</div>
+                        <div className="text-lg font-bold">
+                          {listing.item_name}
+                        </div>
+                        <div className="mt-1 text-sm text-[#9CA3AF]">
+                          {listing.game}
+                        </div>
                       </div>
 
                       <span
@@ -411,7 +549,7 @@ if (error) {
                   Add a short bio for trust
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Keep your listings updated
+                  Upload a clean avatar
                 </li>
               </ul>
             </div>
