@@ -13,6 +13,7 @@ type NavbarProps = {
     | "wishlist"
     | "premium"
     | "dashboard"
+    | "messages"
     | "admin";
 };
 
@@ -49,7 +50,7 @@ export default function Navbar({ active }: NavbarProps) {
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0B0B12]/80 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-6">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="min-w-0 flex items-center gap-3">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-violet-500 to-blue-500 font-black text-white shadow-lg shadow-violet-900/30 ring-1 ring-white/10">
               DX
             </div>
@@ -77,6 +78,9 @@ export default function Navbar({ active }: NavbarProps) {
             <Link href="/wishlist" className={desktopLinkClass("wishlist")}>
               Wishlist
             </Link>
+            <Link href="/messages" className={desktopLinkClass("messages")}>
+              Messages
+            </Link>
             <Link href="/premium" className={desktopLinkClass("premium")}>
               Premium
             </Link>
@@ -85,9 +89,14 @@ export default function Navbar({ active }: NavbarProps) {
             </Link>
 
             {isAdmin && (
-              <Link href="/admin/reviews" className={desktopLinkClass("admin")}>
-                Admin
-              </Link>
+              <>
+                <Link href="/admin/reviews" className={desktopLinkClass("admin")}>
+                  Reviews
+                </Link>
+                <Link href="/admin/users" className={desktopLinkClass("admin")}>
+                  Users
+                </Link>
+              </>
             )}
           </nav>
 
@@ -105,32 +114,37 @@ export default function Navbar({ active }: NavbarProps) {
               <>
                 <Link
                   href="/profile"
-                  className="flex max-w-[220px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
+                  className="group flex max-w-[240px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
                 >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={displayName}
-                      className="h-10 w-10 rounded-xl object-cover border border-white/10"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
-                      {initial}
-                    </div>
-                  )}
-
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-white/90">
-                      {displayName}
-                    </div>
-
-                    {isAdmin && (
-                      <div className="mt-1">
-                        <span className="shrink-0 rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300">
-                          Admin
-                        </span>
+                  <div className="shrink-0">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white ring-1 ring-white/10">
+                        {initial}
                       </div>
                     )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white group-hover:text-white">
+                      {displayName}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className="truncate text-xs text-[#9CA3AF]">
+                        View profile
+                      </span>
+
+                      {isAdmin && (
+                        <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
+                          Admin
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </Link>
 
@@ -152,6 +166,22 @@ export default function Navbar({ active }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-2 sm:hidden">
+            {!loading && user && (
+              <Link href="/profile" className="shrink-0" aria-label="Profile">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-10 w-10 rounded-2xl border border-white/10 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white ring-1 ring-white/10">
+                    {initial}
+                  </div>
+                )}
+              </Link>
+            )}
+
             {!loading && !user && (
               <Link
                 href="/login"
@@ -185,6 +215,9 @@ export default function Navbar({ active }: NavbarProps) {
           <Link href="/wishlist" className={mobileLinkClass("wishlist")}>
             Wishlist
           </Link>
+          <Link href="/messages" className={mobileLinkClass("messages")}>
+            Messages
+          </Link>
           <Link href="/premium" className={mobileLinkClass("premium")}>
             Premium
           </Link>
@@ -193,9 +226,14 @@ export default function Navbar({ active }: NavbarProps) {
           </Link>
 
           {isAdmin && (
-            <Link href="/admin/reviews" className={mobileLinkClass("admin")}>
-              Admin
-            </Link>
+            <>
+              <Link href="/admin/reviews" className={mobileLinkClass("admin")}>
+                Reviews
+              </Link>
+              <Link href="/admin/users" className={mobileLinkClass("admin")}>
+                Users
+              </Link>
+            </>
           )}
 
           <Link

@@ -17,7 +17,15 @@ type Listing = {
   offer_type: string;
   status: string;
   description: string | null;
+  image_url: string | null;
   created_at: string;
+};
+
+type SellerProfile = {
+  id: string;
+  username: string | null;
+  role: string;
+  avatar_url: string | null;
 };
 
 const GAME_OPTIONS = [
@@ -37,10 +45,55 @@ const STATUS_OPTIONS = [
   "Sold",
 ] as const;
 
+const OFFER_TYPE_OPTIONS = [
+  "All offer types",
+  "Sell",
+  "Buy",
+  "Trade",
+] as const;
+
+const SORT_OPTIONS = [
+  "Newest",
+  "Oldest",
+  "Price: Low to high",
+  "Price: High to low",
+] as const;
+
+function ListingImage({
+  src,
+  alt,
+}: {
+  src: string | null;
+  alt: string;
+}) {
+  if (!src) {
+    return (
+      <div className="flex h-44 w-full items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-44 w-full rounded-[18px] border border-white/8 object-cover"
+    />
+  );
+}
+
+function getPriceNumber(price: string) {
+  const cleaned = price.replace(/[^0-9.,]/g, "").replace(",", ".");
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export default function ListingPage() {
   const { user } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
+  const [sellerMap, setSellerMap] = useState<Record<string, SellerProfile>>({});
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -49,6 +102,11 @@ export default function ListingPage() {
     useState<(typeof GAME_OPTIONS)[number]>("All games");
   const [selectedStatus, setSelectedStatus] =
     useState<(typeof STATUS_OPTIONS)[number]>("All statuses");
+  const [selectedCategory, setSelectedCategory] = useState("All categories");
+  const [selectedOfferType, setSelectedOfferType] =
+    useState<(typeof OFFER_TYPE_OPTIONS)[number]>("All offer types");
+  const [selectedSort, setSelectedSort] =
+    useState<(typeof SORT_OPTIONS)[number]>("Newest");
 
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
 
@@ -60,18 +118,40 @@ export default function ListingPage() {
       const { data, error } = await supabase
         .from("listings")
         .select(
-          "id, user_id, game, category, item_name, price, offer_type, status, description, created_at"
+          "id, user_id, game, category, item_name, price, offer_type, status, description, image_url, created_at"
         )
         .order("created_at", { ascending: false });
 
       if (error) {
         setErrorMessage("Could not load listings.");
         setListings([]);
+        setSellerMap({});
         setLoading(false);
         return;
       }
 
-      setListings((data ?? []) as Listing[]);
+      const nextListings = (data ?? []) as Listing[];
+      setListings(nextListings);
+
+      const uniqueUserIds = [...new Set(nextListings.map((item) => item.user_id))];
+
+      if (uniqueUserIds.length > 0) {
+        const { data: sellersData } = await supabase
+          .from("profiles")
+          .select("id, username, role, avatar_url")
+          .in("id", uniqueUserIds);
+
+        const nextSellerMap: Record<string, SellerProfile> = {};
+        (sellersData ?? []).forEach((seller) => {
+          const typedSeller = seller as SellerProfile;
+          nextSellerMap[typedSeller.id] = typedSeller;
+        });
+
+        setSellerMap(nextSellerMap);
+      } else {
+        setSellerMap({});
+      }
+
       setLoading(false);
     };
 
@@ -102,15 +182,28 @@ export default function ListingPage() {
     fetchWishlistIds();
   }, [user]);
 
-  const filteredListings = useMemo(() => {
-    return listings.filter((listing) => {
-      const searchValue = search.trim().toLowerCase();
+  const categoryOptions = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(
+        listings
+          .map((listing) => listing.category?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    ).sort((a, b) => a.localeCompare(b));
 
+    return ["All categories", ...uniqueCategories];
+  }, [listings]);
+
+  const filteredListings = useMemo(() => {
+    const searchValue = search.trim().toLowerCase();
+
+    const nextListings = listings.filter((listing) => {
       const matchesSearch =
         !searchValue ||
         listing.item_name.toLowerCase().includes(searchValue) ||
         listing.game.toLowerCase().includes(searchValue) ||
         listing.category.toLowerCase().includes(searchValue) ||
+        listing.offer_type.toLowerCase().includes(searchValue) ||
         (listing.description ?? "").toLowerCase().includes(searchValue);
 
       const matchesGame =
@@ -119,9 +212,57 @@ export default function ListingPage() {
       const matchesStatus =
         selectedStatus === "All statuses" || listing.status === selectedStatus;
 
-      return matchesSearch && matchesGame && matchesStatus;
+      const matchesCategory =
+        selectedCategory === "All categories" ||
+        listing.category === selectedCategory;
+
+      const matchesOfferType =
+        selectedOfferType === "All offer types" ||
+        listing.offer_type.toLowerCase() === selectedOfferType.toLowerCase();
+
+      return (
+        matchesSearch &&
+        matchesGame &&
+        matchesStatus &&
+        matchesCategory &&
+        matchesOfferType
+      );
     });
-  }, [listings, search, selectedGame, selectedStatus]);
+
+    const sortedListings = [...nextListings].sort((a, b) => {
+      if (selectedSort === "Newest") {
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      }
+
+      if (selectedSort === "Oldest") {
+        return (
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      }
+
+      if (selectedSort === "Price: Low to high") {
+        return getPriceNumber(a.price) - getPriceNumber(b.price);
+      }
+
+      if (selectedSort === "Price: High to low") {
+        return getPriceNumber(b.price) - getPriceNumber(a.price);
+      }
+
+      return 0;
+    });
+
+    return sortedListings;
+  }, [
+    listings,
+    search,
+    selectedGame,
+    selectedStatus,
+    selectedCategory,
+    selectedOfferType,
+    selectedSort,
+  ]);
 
   const availableCount = useMemo(
     () => listings.filter((listing) => listing.status === "Available").length,
@@ -137,6 +278,23 @@ export default function ListingPage() {
     () => listings.filter((listing) => listing.status === "Sold").length,
     [listings]
   );
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    selectedGame !== "All games" ||
+    selectedStatus !== "All statuses" ||
+    selectedCategory !== "All categories" ||
+    selectedOfferType !== "All offer types" ||
+    selectedSort !== "Newest";
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedGame("All games");
+    setSelectedStatus("All statuses");
+    setSelectedCategory("All categories");
+    setSelectedOfferType("All offer types");
+    setSelectedSort("Newest");
+  };
 
   const statusStyle = (status: string) => {
     if (status === "Available") {
@@ -203,14 +361,14 @@ export default function ListingPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.9fr_0.9fr]">
-            <div>
+          <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="xl:col-span-3">
               <label className="mb-2 block text-sm text-[#9CA3AF]">
                 Search
               </label>
               <input
                 type="text"
-                placeholder="Search item, game or category..."
+                placeholder="Search item, game, category or offer type..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
@@ -264,6 +422,98 @@ export default function ListingPage() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-[#9CA3AF]">
+                Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+              >
+                {categoryOptions.map((category) => (
+                  <option
+                    key={category}
+                    value={category}
+                    className="bg-[#131320] text-white"
+                  >
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-[#9CA3AF]">
+                Offer type
+              </label>
+              <select
+                value={selectedOfferType}
+                onChange={(e) =>
+                  setSelectedOfferType(
+                    e.target.value as (typeof OFFER_TYPE_OPTIONS)[number]
+                  )
+                }
+                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+              >
+                {OFFER_TYPE_OPTIONS.map((offerType) => (
+                  <option
+                    key={offerType}
+                    value={offerType}
+                    className="bg-[#131320] text-white"
+                  >
+                    {offerType}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-[#9CA3AF]">Sort</label>
+              <select
+                value={selectedSort}
+                onChange={(e) =>
+                  setSelectedSort(e.target.value as (typeof SORT_OPTIONS)[number])
+                }
+                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+              >
+                {SORT_OPTIONS.map((sortOption) => (
+                  <option
+                    key={sortOption}
+                    value={sortOption}
+                    className="bg-[#131320] text-white"
+                  >
+                    {sortOption}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5">
+            <div className="text-sm text-[#9CA3AF]">
+              <span className="font-semibold text-white">
+                {filteredListings.length}
+              </span>{" "}
+              {filteredListings.length === 1 ? "listing found" : "listings found"}
+            </div>
+
+            {hasActiveFilters && (
+              <div className="text-xs text-violet-300">
+                Filters are currently applied
+              </div>
+            )}
           </div>
         </section>
 
@@ -279,71 +529,139 @@ export default function ListingPage() {
               Loading listings...
             </div>
           ) : filteredListings.length === 0 ? (
-            <div className="rounded-[30px] border border-white/10 bg-[#131320] px-6 py-8 text-sm text-[#9CA3AF]">
-              No listings found with the current filters.
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] px-6 py-10 text-center">
+              <div className="mx-auto max-w-md">
+                <div className="text-xl font-bold text-white">
+                  No listings found
+                </div>
+                <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
+                  Try changing your search or filters to find more items.
+                </p>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                >
+                  Reset filters
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filteredListings.map((listing) => (
-                <article
-                  key={listing.id}
-                  className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                >
-                  <Link href={`/listing/${listing.id}`} className="block">
-                    <div className="h-44 rounded-[18px] border border-white/8 bg-white/5" />
+              {filteredListings.map((listing) => {
+                const seller = sellerMap[listing.user_id];
+                const sellerName = seller?.username || "Unknown seller";
+                const sellerAvatar = seller?.avatar_url || null;
+                const isAdminSeller = seller?.role === "admin";
 
-                    <div className="mt-4 flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-lg font-bold">
-                          {listing.item_name}
+                return (
+                  <article
+                    key={listing.id}
+                    className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                  >
+                    <Link href={`/listing/${listing.id}`} className="block">
+                      <ListingImage
+                        src={listing.image_url}
+                        alt={listing.item_name}
+                      />
+
+                      <div className="mt-4 flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="truncate text-lg font-bold">
+                            {listing.item_name}
+                          </div>
+                          <div className="mt-1 text-sm text-[#9CA3AF]">
+                            {listing.game} • {listing.category}
+                          </div>
                         </div>
-                        <div className="mt-1 text-sm text-[#9CA3AF]">
-                          {listing.game} • {listing.category}
-                        </div>
+
+                        <span
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
+                            listing.status
+                          )}`}
+                        >
+                          {listing.status}
+                        </span>
                       </div>
 
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
-                          listing.status
-                        )}`}
-                      >
-                        {listing.status}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-[#9CA3AF]">Offer type</span>
-                      <span className="font-medium">{listing.offer_type}</span>
-                    </div>
-                  </Link>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="text-2xl font-bold">{listing.price}</div>
-
-                    <Link
-                      href={`/listing/${listing.id}`}
-                      className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
-                    >
-                      View listing
+                      <div className="mt-4 flex items-center justify-between text-sm">
+                        <span className="text-[#9CA3AF]">Offer type</span>
+                        <span className="font-medium">{listing.offer_type}</span>
+                      </div>
                     </Link>
-                  </div>
 
-                  <div className="mt-4">
-                    <WishlistButton
-                      listingId={listing.id}
-                      listingUserId={listing.user_id}
-                      initialIsWishlisted={wishlistedIds.includes(listing.id)}
-                      onChanged={(nextValue) => {
-                        setWishlistedIds((prev) =>
-                          nextValue
-                            ? [...new Set([...prev, listing.id])]
-                            : prev.filter((id) => id !== listing.id)
-                        );
-                      }}
-                    />
-                  </div>
-                </article>
-              ))}
+                    <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Link
+                          href={`/users/${listing.user_id}`}
+                          className="flex min-w-0 items-center gap-3 transition hover:opacity-90"
+                        >
+                          {sellerAvatar ? (
+                            <img
+                              src={sellerAvatar}
+                              alt={sellerName}
+                              className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                              {sellerName[0]?.toUpperCase() || "S"}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-white">
+                              {sellerName}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <span className="text-xs text-[#9CA3AF]">
+                                Seller
+                              </span>
+                              {isAdminSeller && (
+                                <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
+                                  Admin
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+
+                        <Link
+                          href={`/users/${listing.user_id}`}
+                          className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="text-2xl font-bold">{listing.price}</div>
+
+                      <Link
+                        href={`/listing/${listing.id}`}
+                        className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                      >
+                        View listing
+                      </Link>
+                    </div>
+
+                    <div className="mt-4">
+                      <WishlistButton
+                        listingId={listing.id}
+                        listingUserId={listing.user_id}
+                        initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                        onChanged={(nextValue) => {
+                          setWishlistedIds((prev) =>
+                            nextValue
+                              ? [...new Set([...prev, listing.id])]
+                              : prev.filter((id) => id !== listing.id)
+                          );
+                        }}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

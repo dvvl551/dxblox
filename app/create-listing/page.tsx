@@ -11,7 +11,7 @@ const GAME_CATEGORIES: Record<string, string[]> = {
   MM2: ["Knives", "Guns", "Bundles", "Looking for"],
   "Adopt Me": ["Pets", "Eggs", "Vehicles", "Looking for"],
   "Blox Fruits": ["Fruits", "Bundles", "Accounts", "Looking for"],
-  "Blade Ball": ["Weapons", "Effects", "Emotes", "Bundles", "Looking for"],
+  "Blade Ball": ["Swords", "Finishers", "Emotes", "Bundles", "Looking for"],
   "Steal a Brainrot": [
     "Rare items",
     "Limited offers",
@@ -230,10 +230,11 @@ export default function CreateListingPage() {
       let uploadedImageUrl: string | null = null;
 
       if (selectedImage) {
-        const fileExt =
-          selectedImage.type === "image/png" ? "png" : "jpg";
+        const fileExt = selectedImage.type === "image/png" ? "png" : "jpg";
         const safeName = sanitizeFileName(selectedImage.name);
-        const filePath = `${user.id}/${Date.now()}-${safeName || `image.${fileExt}`}`;
+        const filePath = `${user.id}/${Date.now()}-${
+          safeName || `image.${fileExt}`
+        }`;
 
         const { error: uploadError } = await supabase.storage
           .from("listing-images")
@@ -243,10 +244,12 @@ export default function CreateListingPage() {
             contentType: selectedImage.type,
           });
 
-if (uploadError) {
-  setErrorMessage(uploadError.message || "Could not upload image. Please try again.");
-  return;
-}
+        if (uploadError) {
+          setErrorMessage(
+            uploadError.message || "Could not upload image. Please try again."
+          );
+          return;
+        }
 
         const { data: publicUrlData } = supabase.storage
           .from("listing-images")
@@ -255,29 +258,34 @@ if (uploadError) {
         uploadedImageUrl = publicUrlData.publicUrl;
       }
 
-const { data, error } = await supabase.from("listing_submissions").insert({
-  listing_id: null,
-  user_id: user.id,
-  submission_type: "create",
-  review_status: "pending",
-  game,
-  category,
-  item_name: trimmedItemName,
-  price: finalPrice,
-  offer_type: offerType,
-  status,
-  description: trimmedDescription || null,
-  image_url: uploadedImageUrl,
-  proof_url: null,
-}).select();
+      const { data, error } = await supabase
+        .from("listing_submissions")
+        .insert({
+          listing_id: null,
+          user_id: user.id,
+          submission_type: "create",
+          review_status: "pending",
+          game,
+          category,
+          item_name: trimmedItemName,
+          price: finalPrice,
+          offer_type: offerType,
+          status,
+          description: trimmedDescription || null,
+          image_url: uploadedImageUrl,
+          proof_url: null,
+        })
+        .select();
 
-console.log("submission insert data:", data);
-console.log("submission insert error:", error);
+      console.log("submission insert data:", data);
+      console.log("submission insert error:", error);
 
-if (error) {
-  setErrorMessage(error.message || "Could not send listing for review. Please try again.");
-  return;
-}
+      if (error) {
+        setErrorMessage(
+          error.message || "Could not send listing for review. Please try again."
+        );
+        return;
+      }
 
       setSuccessMessage("Listing sent for review successfully.");
       resetForm();
@@ -503,7 +511,9 @@ if (error) {
                   <input
                     type="file"
                     accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+                    onChange={(e) =>
+                      handleImageChange(e.target.files?.[0] ?? null)
+                    }
                     className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
                   />
                   <p className="mt-3 text-sm text-[#9CA3AF]">

@@ -19,6 +19,7 @@ type Listing = {
   price: string;
   status: string;
   offer_type: string;
+  image_url: string | null;
 };
 
 type WishlistItem = {
@@ -48,6 +49,30 @@ function offerTypeStyle(offerType: string) {
     return "border-sky-500/20 bg-sky-500/10 text-sky-300";
   }
   return "border-violet-500/20 bg-violet-500/10 text-violet-300";
+}
+
+function ListingImage({
+  src,
+  alt,
+}: {
+  src: string | null;
+  alt: string;
+}) {
+  if (!src) {
+    return (
+      <div className="flex h-36 w-full items-center justify-center rounded-[18px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-36 w-full rounded-[18px] border border-white/8 object-cover"
+    />
+  );
 }
 
 export default function WishlistPage() {
@@ -98,7 +123,7 @@ export default function WishlistPage() {
 
       const { data: listingsData, error: listingsError } = await supabase
         .from("listings")
-        .select("id, game, item_name, price, status, offer_type")
+        .select("id, game, item_name, price, status, offer_type, image_url")
         .in("id", listingIds);
 
       if (listingsError) {
@@ -146,7 +171,7 @@ export default function WishlistPage() {
         .from("wishlist_items")
         .delete()
         .eq("id", wishlistId)
-        .eq("user_id", user.id)
+        .eq("user_id", user.id);
 
       if (error) {
         setErrorMessage("Could not remove item from wishlist.");
@@ -249,7 +274,10 @@ export default function WishlistPage() {
                     key={item.wishlistId}
                     className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
                   >
-                    <div className="h-36 rounded-[18px] border border-white/8 bg-black/20" />
+                    <ListingImage
+                      src={item.listing.image_url}
+                      alt={item.listing.item_name}
+                    />
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       <span
@@ -278,7 +306,9 @@ export default function WishlistPage() {
                     </div>
 
                     <div className="mt-4 flex items-center justify-between">
-                      <div className="text-2xl font-bold">{item.listing.price}</div>
+                      <div className="text-2xl font-bold">
+                        {item.listing.price}
+                      </div>
                       <Link
                         href={`/listing/${item.listing.id}`}
                         className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"

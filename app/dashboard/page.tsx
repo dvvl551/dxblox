@@ -36,15 +36,25 @@ type Submission = {
   created_at: string;
 };
 
+type Conversation = {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  created_at: string;
+};
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
 
   const [loadingListings, setLoadingListings] = useState(true);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(true);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -114,6 +124,36 @@ export default function DashboardPage() {
     fetchSubmissions();
   }, [user, authLoading]);
 
+  useEffect(() => {
+    const fetchConversations = async () => {
+      if (authLoading) return;
+
+      if (!user) {
+        setConversations([]);
+        setLoadingMessages(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("id, listing_id, buyer_id, seller_id, created_at")
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setErrorMessage((prev) => prev || "Could not load your messages.");
+        setConversations([]);
+        setLoadingMessages(false);
+        return;
+      }
+
+      setConversations((data ?? []) as Conversation[]);
+      setLoadingMessages(false);
+    };
+
+    fetchConversations();
+  }, [user, authLoading]);
+
   const activeCount = useMemo(
     () => listings.filter((listing) => listing.status === "Available").length,
     [listings]
@@ -130,14 +170,20 @@ export default function DashboardPage() {
   );
 
   const pendingReviewCount = useMemo(
-    () => submissions.filter((submission) => submission.review_status === "pending").length,
+    () =>
+      submissions.filter((submission) => submission.review_status === "pending")
+        .length,
     [submissions]
   );
 
   const rejectedReviewCount = useMemo(
-    () => submissions.filter((submission) => submission.review_status === "rejected").length,
+    () =>
+      submissions.filter((submission) => submission.review_status === "rejected")
+        .length,
     [submissions]
   );
+
+  const conversationCount = conversations.length;
 
   const latestGame = useMemo(() => {
     if (listings.length === 0) return "No listings yet";
@@ -153,6 +199,11 @@ export default function DashboardPage() {
     }
     return "No recent activity";
   }, [listings, submissions]);
+
+  const latestMessageActivity = useMemo(() => {
+    if (conversations.length === 0) return "No conversations yet";
+    return `Active conversations: ${conversations.length}`;
+  }, [conversations]);
 
   const accountType = profile?.role === "admin" ? "Admin" : "User";
   const isAdmin = profile?.role === "admin";
@@ -287,13 +338,13 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="mt-3 max-w-xl text-sm leading-6 text-[#9CA3AF]">
-                  Manage your live listings and track every request sent for
-                  review.
+                  Manage your live listings, review requests, and messages from
+                  one place.
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-6">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Active</div>
                 <div className="mt-1 text-2xl font-bold">{activeCount}</div>
@@ -311,12 +362,23 @@ export default function DashboardPage() {
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Review pending</div>
-                <div className="mt-1 text-2xl font-bold">{pendingReviewCount}</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {pendingReviewCount}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Rejected</div>
-                <div className="mt-1 text-2xl font-bold">{rejectedReviewCount}</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {rejectedReviewCount}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs text-[#9CA3AF]">Messages</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {loadingMessages ? "..." : conversationCount}
+                </div>
               </div>
             </div>
 
@@ -329,6 +391,13 @@ export default function DashboardPage() {
               </Link>
 
               <Link
+                href="/messages"
+                className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+              >
+                Open messages
+              </Link>
+
+              <Link
                 href="/wishlist"
                 className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
               >
@@ -336,12 +405,20 @@ export default function DashboardPage() {
               </Link>
 
               {isAdmin && (
-                <Link
-                  href="/admin/reviews"
-                  className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
-                >
-                  Review requests
-                </Link>
+                <>
+                  <Link
+                    href="/admin/reviews"
+                    className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
+                  >
+                    Review requests
+                  </Link>
+                  <Link
+                    href="/admin/users"
+                    className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
+                  >
+                    Admin users
+                  </Link>
+                </>
               )}
             </div>
           </div>
@@ -349,8 +426,8 @@ export default function DashboardPage() {
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
             <h2 className="text-2xl font-bold">Quick overview</h2>
             <p className="mt-4 leading-7 text-[#9CA3AF]">
-              This dashboard now shows both your public listings and the
-              moderation flow of your requests.
+              This dashboard now shows your public listings, moderation flow,
+              and your messaging activity.
             </p>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -374,6 +451,11 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-sm font-semibold">Account type</div>
                 <div className="mt-2 text-[#9CA3AF]">{accountType}</div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4 sm:col-span-2">
+                <div className="text-sm font-semibold">Inbox activity</div>
+                <div className="mt-2 text-[#9CA3AF]">{latestMessageActivity}</div>
               </div>
             </div>
           </div>
@@ -419,7 +501,10 @@ export default function DashboardPage() {
                       className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
                     >
                       <Link href={`/listing/${listing.id}`} className="block">
-                        <ListingImage src={listing.image_url} alt={listing.item_name} />
+                        <ListingImage
+                          src={listing.image_url}
+                          alt={listing.item_name}
+                        />
 
                         <div className="mt-4 flex items-start justify-between gap-4">
                           <div>
@@ -543,14 +628,18 @@ export default function DashboardPage() {
 
                           <div className="mt-4 grid gap-3 sm:grid-cols-2">
                             <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
-                              <div className="text-xs text-[#9CA3AF]">Offer type</div>
+                              <div className="text-xs text-[#9CA3AF]">
+                                Offer type
+                              </div>
                               <div className="mt-1 font-medium">
                                 {submission.offer_type}
                               </div>
                             </div>
 
                             <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
-                              <div className="text-xs text-[#9CA3AF]">Listing status</div>
+                              <div className="text-xs text-[#9CA3AF]">
+                                Listing status
+                              </div>
                               <div className="mt-1 font-medium">
                                 {submission.status}
                               </div>
@@ -586,6 +675,13 @@ export default function DashboardPage() {
               <h3 className="text-xl font-bold">Quick actions</h3>
               <div className="mt-4 space-y-3">
                 <Link
+                  href="/messages"
+                  className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
+                >
+                  Open messages
+                </Link>
+
+                <Link
                   href="/profile"
                   className="block rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-white/85 transition hover:bg-white/10"
                 >
@@ -607,14 +703,46 @@ export default function DashboardPage() {
                 </Link>
 
                 {isAdmin && (
-                  <Link
-                    href="/admin/reviews"
-                    className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
-                  >
-                    Open admin reviews
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin/reviews"
+                      className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
+                    >
+                      Open admin reviews
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
+                    >
+                      Open admin users
+                    </Link>
+                  </>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
+              <h3 className="text-xl font-bold">Inbox</h3>
+              <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs text-[#9CA3AF]">Conversations</div>
+                <div className="mt-2 text-3xl font-black">
+                  {loadingMessages ? "..." : conversationCount}
+                </div>
+                <div className="mt-2 text-sm text-[#9CA3AF]">
+                  {loadingMessages
+                    ? "Loading message activity..."
+                    : conversationCount > 0
+                    ? "Your inbox is active and ready."
+                    : "No conversations started yet."}
+                </div>
+              </div>
+
+              <Link
+                href="/messages"
+                className="mt-4 block rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-white/85 transition hover:bg-white/10"
+              >
+                Go to inbox
+              </Link>
             </div>
 
             <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
@@ -633,8 +761,13 @@ export default function DashboardPage() {
                   Rejected requests can show an admin note here
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Admin accounts can jump directly to the moderation panel
+                  Messages are now accessible directly from your dashboard
                 </li>
+                {isAdmin && (
+                  <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                    Admin accounts can jump directly to reviews and users
+                  </li>
+                )}
               </ul>
             </div>
           </aside>

@@ -30,8 +30,69 @@ type ProfileRow = {
   id: string;
   username: string | null;
   role: string | null;
-  avatar_url?: string | null;
+  avatar_url: string | null;
 };
+
+function SubmissionBadge({
+  type,
+}: {
+  type: Submission["submission_type"];
+}) {
+  const styles =
+    type === "create"
+      ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+      : "border-sky-500/30 bg-sky-500/15 text-sky-300";
+
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${styles}`}
+    >
+      {type}
+    </span>
+  );
+}
+
+function StatusBadge({ value }: { value: string }) {
+  const styles: Record<string, string> = {
+    pending: "border-orange-500/30 bg-orange-500/15 text-orange-300",
+    approved: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
+    rejected: "border-red-500/30 bg-red-500/15 text-red-300",
+  };
+
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+        styles[value] || "border-white/10 bg-white/5 text-white/75"
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function ListingImage({
+  src,
+  alt,
+}: {
+  src: string | null;
+  alt: string;
+}) {
+  if (!src) {
+    return (
+      <div className="flex h-56 w-full items-center justify-center rounded-[22px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-56 w-full rounded-[22px] border border-white/8 object-cover"
+    />
+  );
+}
 
 export default function AdminReviewsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -85,7 +146,7 @@ export default function AdminReviewsPage() {
       if (uniqueUserIds.length > 0) {
         const { data: profilesData } = await supabase
           .from("profiles")
-          .select("id, username, role")
+          .select("id, username, role, avatar_url")
           .in("id", uniqueUserIds);
 
         const nextProfilesMap: Record<string, ProfileRow> = {};
@@ -256,24 +317,6 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const StatusBadge = ({ value }: { value: string }) => {
-    const styles: Record<string, string> = {
-      pending: "border-orange-500/30 bg-orange-500/15 text-orange-300",
-      approved: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
-      rejected: "border-red-500/30 bg-red-500/15 text-red-300",
-    };
-
-    return (
-      <span
-        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-          styles[value] || "border-white/10 bg-white/5 text-white/75"
-        }`}
-      >
-        {value}
-      </span>
-    );
-  };
-
   if (!loading && (!user || !isAdmin)) {
     return (
       <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -360,57 +403,70 @@ export default function AdminReviewsPage() {
               No pending requests right now.
             </div>
           ) : (
-            <div className="grid gap-5">
+            <div className="grid gap-6">
               {pendingSubmissions.map((submission) => {
                 const sellerProfile = profilesMap[submission.user_id];
                 const sellerName =
                   sellerProfile?.username || `User ${submission.user_id.slice(0, 8)}`;
                 const sellerRole = sellerProfile?.role || "user";
+                const sellerAvatar = sellerProfile?.avatar_url || null;
                 const sellerInitial = sellerName[0]?.toUpperCase() || "U";
+
+                const submittedAt = new Date(submission.created_at);
+                const formattedSubmittedAt = Number.isNaN(submittedAt.getTime())
+                  ? "Unknown date"
+                  : submittedAt.toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    });
 
                 return (
                   <article
                     key={submission.id}
-                    className="rounded-[28px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.20)]"
+                    className="overflow-hidden rounded-[28px] border border-white/10 bg-[#131320] shadow-[0_20px_80px_rgba(0,0,0,0.20)]"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="mb-3 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-300">
-                            {submission.submission_type}
-                          </span>
-                          <StatusBadge value={submission.review_status} />
+                    <div className="border-b border-white/8 bg-white/[0.02] px-6 py-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            <SubmissionBadge type={submission.submission_type} />
+                            <StatusBadge value={submission.review_status} />
+                            {submission.submission_type === "edit" && submission.listing_id && (
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white/75">
+                                Existing listing update
+                              </span>
+                            )}
+                          </div>
+
+                          <h2 className="truncate text-2xl font-bold">
+                            {submission.item_name}
+                          </h2>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#9CA3AF]">
+                            <span>
+                              {submission.game} • {submission.category}
+                            </span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>Submitted on {formattedSubmittedAt}</span>
+                          </div>
                         </div>
 
-                        <h2 className="text-2xl font-bold">
-                          {submission.item_name}
-                        </h2>
-                        <p className="mt-2 text-[#9CA3AF]">
-                          {submission.game} • {submission.category}
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-right">
-                        <div className="text-xs text-emerald-300">Price</div>
-                        <div className="mt-1 text-xl font-bold text-emerald-300">
-                          {submission.price}
+                        <div className="shrink-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-right">
+                          <div className="text-xs text-emerald-300">Price</div>
+                          <div className="mt-1 text-xl font-bold text-emerald-300">
+                            {submission.price}
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-6 xl:grid-cols-[280px_1fr]">
+                    <div className="grid gap-6 px-6 py-6 xl:grid-cols-[280px_1fr]">
                       <div className="space-y-4">
-                        {submission.image_url ? (
-                          <img
-                            src={submission.image_url}
-                            alt={submission.item_name}
-                            className="h-56 w-full rounded-[22px] border border-white/8 object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-56 items-center justify-center rounded-[22px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
-                            No image
-                          </div>
-                        )}
+                        <ListingImage
+                          src={submission.image_url}
+                          alt={submission.item_name}
+                        />
 
                         <div className="rounded-[22px] border border-white/8 bg-white/5 p-4">
                           <div className="mb-3 text-sm font-semibold text-white">
@@ -418,9 +474,17 @@ export default function AdminReviewsPage() {
                           </div>
 
                           <div className="flex items-center gap-4">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-lg font-black text-white">
-                              {sellerInitial}
-                            </div>
+                            {sellerAvatar ? (
+                              <img
+                                src={sellerAvatar}
+                                alt={sellerName}
+                                className="h-14 w-14 rounded-2xl border border-white/10 object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-lg font-black text-white">
+                                {sellerInitial}
+                              </div>
+                            )}
 
                             <div className="min-w-0">
                               <div className="truncate text-base font-bold text-white">
@@ -439,11 +503,44 @@ export default function AdminReviewsPage() {
                               </div>
                             </div>
                           </div>
+
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <Link
+                              href={`/users/${submission.user_id}`}
+                              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                            >
+                              View profile
+                            </Link>
+
+                            {submission.submission_type === "edit" &&
+                              submission.listing_id && (
+                                <Link
+                                  href={`/listing/${submission.listing_id}`}
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                                >
+                                  View current listing
+                                </Link>
+                              )}
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                            <div className="text-xs text-[#9CA3AF]">Game</div>
+                            <div className="mt-1 font-semibold">
+                              {submission.game}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                            <div className="text-xs text-[#9CA3AF]">Category</div>
+                            <div className="mt-1 font-semibold">
+                              {submission.category}
+                            </div>
+                          </div>
+
                           <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                             <div className="text-xs text-[#9CA3AF]">
                               Offer type
@@ -475,7 +572,7 @@ export default function AdminReviewsPage() {
                             Reject note
                           </label>
                           <textarea
-                            rows={3}
+                            rows={4}
                             value={rejectNotes[submission.id] || ""}
                             onChange={(e) =>
                               setRejectNotes((prev) => ({
@@ -484,11 +581,15 @@ export default function AdminReviewsPage() {
                               }))
                             }
                             placeholder="Optional reason visible to the user..."
-                            className="w-full rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                            className="w-full rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white outline-none placeholder:text-[#73798f]"
                           />
+                          <p className="mt-2 text-xs text-[#9CA3AF]">
+                            This note will be visible to the user if the request
+                            is rejected.
+                          </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-wrap gap-3 pt-1">
                           <button
                             type="button"
                             onClick={() => handleApprove(submission)}

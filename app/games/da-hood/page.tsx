@@ -16,6 +16,7 @@ type Listing = {
   price: string;
   offer_type: string;
   status: string;
+  image_url: string | null;
   created_at: string;
 };
 
@@ -23,6 +24,7 @@ type SellerProfile = {
   id: string;
   username: string | null;
   role: string;
+  avatar_url: string | null;
 };
 
 function badgeStyle(badge: string) {
@@ -49,6 +51,34 @@ const wantedItems = [
   { name: "Urban Set", saves: 57 },
 ];
 
+function ListingImage({
+  src,
+  alt,
+  className = "",
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className}`}
+      >
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`rounded-[18px] border border-white/8 object-cover ${className}`}
+    />
+  );
+}
+
 export default function DaHoodPage() {
   const { user } = useAuth();
 
@@ -72,7 +102,7 @@ export default function DaHoodPage() {
       const { data, error } = await supabase
         .from("listings")
         .select(
-          "id, user_id, game, category, item_name, price, offer_type, status, created_at"
+          "id, user_id, game, category, item_name, price, offer_type, status, image_url, created_at"
         )
         .eq("game", "Da Hood")
         .order("created_at", { ascending: false });
@@ -92,7 +122,7 @@ export default function DaHoodPage() {
       if (uniqueUserIds.length > 0) {
         const { data: sellersData } = await supabase
           .from("profiles")
-          .select("id, username, role")
+          .select("id, username, role, avatar_url")
           .in("id", uniqueUserIds);
 
         const nextSellerMap: Record<string, SellerProfile> = {};
@@ -184,6 +214,7 @@ export default function DaHoodPage() {
         userId,
         username: sellerMap[userId]?.username || "Unknown seller",
         role: sellerMap[userId]?.role || "user",
+        avatar_url: sellerMap[userId]?.avatar_url || null,
         listings: count,
       }))
       .sort((a, b) => b.listings - a.listings)
@@ -231,7 +262,14 @@ export default function DaHoodPage() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   <div className="text-xs text-[#9CA3AF]">Verified sellers</div>
-                  <div className="mt-1 text-lg font-bold">{sellerStats.length}</div>
+                  <div className="mt-1 text-lg font-bold">
+                    {
+                      sellerStats.filter(
+                        (seller) =>
+                          seller.role === "admin" || seller.role === "user"
+                      ).length
+                    }
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   <div className="text-xs text-[#9CA3AF]">Wanted items</div>
@@ -260,6 +298,11 @@ export default function DaHoodPage() {
                 <div className="w-full rounded-[24px] border border-white/10 bg-black/20 p-5 backdrop-blur">
                   {featuredListing ? (
                     <>
+                      <ListingImage
+                        src={featuredListing.image_url}
+                        alt={featuredListing.item_name}
+                        className="mb-4 h-44 w-full"
+                      />
                       <div className="text-sm text-[#9CA3AF]">Featured listing</div>
                       <div className="mt-2 text-2xl font-bold">
                         {featuredListing.item_name}
@@ -295,7 +338,7 @@ export default function DaHoodPage() {
           </div>
         </section>
 
-        <section className="rounded-[26px] border border-white/10 bg-[#131320] p-5 mt-6">
+        <section className="mt-6 rounded-[26px] border border-white/10 bg-[#131320] p-5">
           <div className="grid gap-4 lg:grid-cols-6">
             <input
               value={search}
@@ -415,13 +458,19 @@ export default function DaHoodPage() {
                   const sellerName = seller?.username || "Unknown seller";
                   const sellerBadge =
                     seller?.role === "admin" ? "Premium" : "Verified";
+                  const sellerAvatar = seller?.avatar_url || null;
 
                   return (
                     <div
                       key={listing.id}
                       className="rounded-[24px] border border-white/10 bg-[#131320] p-4"
                     >
-                      <div className="h-44 rounded-[18px] border border-white/8 bg-gradient-to-br from-white/8 to-white/3" />
+                      <ListingImage
+                        src={listing.image_url}
+                        alt={listing.item_name}
+                        className="h-44 w-full"
+                      />
+
                       <div className="mt-4 flex items-start justify-between gap-4">
                         <div>
                           <div className="text-lg font-bold">
@@ -440,12 +489,44 @@ export default function DaHoodPage() {
                         </span>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-[#9CA3AF]">Seller</span>
-                        <span className="font-medium">{sellerName}</span>
+                      <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <Link
+                            href={`/users/${listing.user_id}`}
+                            className="flex min-w-0 items-center gap-3 transition hover:opacity-90"
+                          >
+                            {sellerAvatar ? (
+                              <img
+                                src={sellerAvatar}
+                                alt={sellerName}
+                                className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                                {sellerName[0]?.toUpperCase() || "S"}
+                              </div>
+                            )}
+
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-white">
+                                {sellerName}
+                              </div>
+                              <div className="mt-0.5 text-xs text-[#9CA3AF]">
+                                Seller profile
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href={`/users/${listing.user_id}`}
+                            className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                          >
+                            View
+                          </Link>
+                        </div>
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between text-sm">
+                      <div className="mt-4 flex items-center justify-between text-sm">
                         <span className="text-[#9CA3AF]">Offer type</span>
                         <span className="font-medium">{listing.offer_type}</span>
                       </div>
@@ -491,17 +572,35 @@ export default function DaHoodPage() {
                   </div>
                 ) : (
                   sellerStats.map((seller) => (
-                    <div
+                    <Link
                       key={seller.userId}
-                      className="rounded-2xl border border-white/8 bg-white/5 p-4"
+                      href={`/users/${seller.userId}`}
+                      className="block rounded-2xl border border-white/8 bg-white/5 p-4 transition hover:border-white/15 hover:bg-white/[0.07]"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="font-semibold">{seller.username}</div>
-                          <div className="mt-1 text-sm text-[#9CA3AF]">
-                            {seller.listings} active listings
+                        <div className="flex min-w-0 items-center gap-3">
+                          {seller.avatar_url ? (
+                            <img
+                              src={seller.avatar_url}
+                              alt={seller.username}
+                              className="h-12 w-12 rounded-2xl border border-white/10 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                              {seller.username?.[0]?.toUpperCase() || "S"}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">
+                              {seller.username}
+                            </div>
+                            <div className="mt-1 text-sm text-[#9CA3AF]">
+                              {seller.listings} active listings
+                            </div>
                           </div>
                         </div>
+
                         <div className="text-right">
                           <div className="text-sm text-[#9CA3AF]">Role</div>
                           <div className="font-bold">
@@ -509,7 +608,7 @@ export default function DaHoodPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))
                 )}
               </div>

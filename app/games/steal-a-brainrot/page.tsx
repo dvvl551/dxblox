@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -16,6 +16,7 @@ type Listing = {
   price: string;
   offer_type: string;
   status: string;
+  image_url: string | null;
   created_at: string;
 };
 
@@ -23,6 +24,7 @@ type SellerProfile = {
   id: string;
   username: string | null;
   role: string;
+  avatar_url: string | null;
 };
 
 function badgeStyle(badge: string) {
@@ -49,16 +51,41 @@ const wantedItems = [
   { name: "Event Bundle", saves: 65 },
 ];
 
+function ListingImage({
+  src,
+  alt,
+  className = "",
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className}`}
+      >
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`rounded-[18px] border border-white/8 object-cover ${className}`}
+    />
+  );
+}
+
 export default function StealABrainrotPage() {
-  const router = useRouter();
   const { user } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [sellerMap, setSellerMap] = useState<Record<string, SellerProfile>>({});
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionError, setActionError] = useState("");
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -66,7 +93,6 @@ export default function StealABrainrotPage() {
   const [selectedSort, setSelectedSort] = useState("Most recent");
 
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
-  const [wishlistLoadingId, setWishlistLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBrainrotListings = async () => {
@@ -76,7 +102,7 @@ export default function StealABrainrotPage() {
       const { data, error } = await supabase
         .from("listings")
         .select(
-          "id, user_id, game, category, item_name, price, offer_type, status, created_at"
+          "id, user_id, game, category, item_name, price, offer_type, status, image_url, created_at"
         )
         .eq("game", "Steal a Brainrot")
         .order("created_at", { ascending: false });
@@ -88,7 +114,7 @@ export default function StealABrainrotPage() {
         return;
       }
 
-      const brainrotListings = data ?? [];
+      const brainrotListings = (data ?? []) as Listing[];
       setListings(brainrotListings);
 
       const uniqueUserIds = [...new Set(brainrotListings.map((item) => item.user_id))];
@@ -96,12 +122,13 @@ export default function StealABrainrotPage() {
       if (uniqueUserIds.length > 0) {
         const { data: sellersData } = await supabase
           .from("profiles")
-          .select("id, username, role")
+          .select("id, username, role, avatar_url")
           .in("id", uniqueUserIds);
 
         const nextSellerMap: Record<string, SellerProfile> = {};
         (sellersData ?? []).forEach((seller) => {
-          nextSellerMap[seller.id] = seller as SellerProfile;
+          const typedSeller = seller as SellerProfile;
+          nextSellerMap[typedSeller.id] = typedSeller;
         });
 
         setSellerMap(nextSellerMap);
@@ -187,70 +214,12 @@ export default function StealABrainrotPage() {
         userId,
         username: sellerMap[userId]?.username || "Unknown seller",
         role: sellerMap[userId]?.role || "user",
+        avatar_url: sellerMap[userId]?.avatar_url || null,
         listings: count,
       }))
       .sort((a, b) => b.listings - a.listings)
       .slice(0, 3);
   }, [listings, sellerMap]);
-
-  const handleToggleWishlist = async (event: any, listing: Listing) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (wishlistLoadingId) return;
-
-    setActionMessage("");
-    setActionError("");
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.id === listing.user_id) {
-      setActionError("You cannot add your own listing to your wishlist.");
-      return;
-    }
-
-    const isWishlisted = wishlistedIds.includes(listing.id);
-
-    setWishlistLoadingId(listing.id);
-
-    try {
-      if (isWishlisted) {
-        const { error } = await supabase
-          .from("wishlist_items")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("listing_id", listing.id);
-
-        if (error) {
-          setActionError("Could not remove from wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => prev.filter((id) => id !== listing.id));
-        setActionMessage("Removed from wishlist.");
-      } else {
-        const { error } = await supabase.from("wishlist_items").insert({
-          user_id: user.id,
-          listing_id: listing.id,
-        });
-
-        if (error) {
-          setActionError("Could not add to wishlist. Please try again.");
-          return;
-        }
-
-        setWishlistedIds((prev) => [...prev, listing.id]);
-        setActionMessage("Added to wishlist.");
-      }
-    } catch {
-      setActionError("Something went wrong. Please try again.");
-    } finally {
-      setWishlistLoadingId(null);
-    }
-  };
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -293,7 +262,14 @@ export default function StealABrainrotPage() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   <div className="text-xs text-[#9CA3AF]">Verified sellers</div>
-                  <div className="mt-1 text-lg font-bold">{sellerStats.length}</div>
+                  <div className="mt-1 text-lg font-bold">
+                    {
+                      sellerStats.filter(
+                        (seller) =>
+                          seller.role === "admin" || seller.role === "user"
+                      ).length
+                    }
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   <div className="text-xs text-[#9CA3AF]">Wanted items</div>
@@ -322,6 +298,11 @@ export default function StealABrainrotPage() {
                 <div className="w-full rounded-[24px] border border-white/10 bg-black/20 p-5 backdrop-blur">
                   {featuredListing ? (
                     <>
+                      <ListingImage
+                        src={featuredListing.image_url}
+                        alt={featuredListing.item_name}
+                        className="mb-4 h-44 w-full"
+                      />
                       <div className="text-sm text-[#9CA3AF]">Featured listing</div>
                       <div className="mt-2 text-2xl font-bold">
                         {featuredListing.item_name}
@@ -357,21 +338,7 @@ export default function StealABrainrotPage() {
           </div>
         </section>
 
-        <section className="mt-6">
-          {actionError && (
-            <div className="mb-4 rounded-[24px] border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-              {actionError}
-            </div>
-          )}
-
-          {actionMessage && (
-            <div className="mb-4 rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
-              {actionMessage}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[26px] border border-white/10 bg-[#131320] p-5">
+        <section className="mt-6 rounded-[26px] border border-white/10 bg-[#131320] p-5">
           <div className="grid gap-4 lg:grid-cols-6">
             <input
               value={search}
@@ -491,16 +458,19 @@ export default function StealABrainrotPage() {
                   const sellerName = seller?.username || "Unknown seller";
                   const sellerBadge =
                     seller?.role === "admin" ? "Premium" : "Verified";
-                  const isWishlisted = wishlistedIds.includes(listing.id);
-                  const isOwnListing = !!user && user.id === listing.user_id;
-                  const isCurrentCardLoading = wishlistLoadingId === listing.id;
+                  const sellerAvatar = seller?.avatar_url || null;
 
                   return (
                     <div
                       key={listing.id}
                       className="rounded-[24px] border border-white/10 bg-[#131320] p-4"
                     >
-                      <div className="h-44 rounded-[18px] border border-white/8 bg-gradient-to-br from-white/8 to-white/3" />
+                      <ListingImage
+                        src={listing.image_url}
+                        alt={listing.item_name}
+                        className="h-44 w-full"
+                      />
+
                       <div className="mt-4 flex items-start justify-between gap-4">
                         <div>
                           <div className="text-lg font-bold">
@@ -519,12 +489,44 @@ export default function StealABrainrotPage() {
                         </span>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-[#9CA3AF]">Seller</span>
-                        <span className="font-medium">{sellerName}</span>
+                      <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <Link
+                            href={`/users/${listing.user_id}`}
+                            className="flex min-w-0 items-center gap-3 transition hover:opacity-90"
+                          >
+                            {sellerAvatar ? (
+                              <img
+                                src={sellerAvatar}
+                                alt={sellerName}
+                                className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                                {sellerName[0]?.toUpperCase() || "S"}
+                              </div>
+                            )}
+
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-white">
+                                {sellerName}
+                              </div>
+                              <div className="mt-0.5 text-xs text-[#9CA3AF]">
+                                Seller profile
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href={`/users/${listing.user_id}`}
+                            className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                          >
+                            View
+                          </Link>
+                        </div>
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between text-sm">
+                      <div className="mt-4 flex items-center justify-between text-sm">
                         <span className="text-[#9CA3AF]">Offer type</span>
                         <span className="font-medium">{listing.offer_type}</span>
                       </div>
@@ -540,29 +542,18 @@ export default function StealABrainrotPage() {
                       </div>
 
                       <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={(event) => handleToggleWishlist(event, listing)}
-                          disabled={isCurrentCardLoading || isOwnListing}
-                          className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                            isOwnListing
-                              ? "border border-white/10 bg-white/5 text-white/50"
-                              : isWishlisted
-                              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                              : "border border-white/10 text-white/90 hover:bg-white/5"
-                          }`}
-                        >
-                          {isOwnListing && "Your listing"}
-                          {!isOwnListing && isCurrentCardLoading && "Saving..."}
-                          {!isOwnListing &&
-                            !isCurrentCardLoading &&
-                            isWishlisted &&
-                            "Remove from wishlist"}
-                          {!isOwnListing &&
-                            !isCurrentCardLoading &&
-                            !isWishlisted &&
-                            "Add to wishlist"}
-                        </button>
+                        <WishlistButton
+                          listingId={listing.id}
+                          listingUserId={listing.user_id}
+                          initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                          onChanged={(nextValue) => {
+                            setWishlistedIds((prev) =>
+                              nextValue
+                                ? [...new Set([...prev, listing.id])]
+                                : prev.filter((id) => id !== listing.id)
+                            );
+                          }}
+                        />
                       </div>
                     </div>
                   );
@@ -581,17 +572,35 @@ export default function StealABrainrotPage() {
                   </div>
                 ) : (
                   sellerStats.map((seller) => (
-                    <div
+                    <Link
                       key={seller.userId}
-                      className="rounded-2xl border border-white/8 bg-white/5 p-4"
+                      href={`/users/${seller.userId}`}
+                      className="block rounded-2xl border border-white/8 bg-white/5 p-4 transition hover:border-white/15 hover:bg-white/[0.07]"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="font-semibold">{seller.username}</div>
-                          <div className="mt-1 text-sm text-[#9CA3AF]">
-                            {seller.listings} active listings
+                        <div className="flex min-w-0 items-center gap-3">
+                          {seller.avatar_url ? (
+                            <img
+                              src={seller.avatar_url}
+                              alt={seller.username}
+                              className="h-12 w-12 rounded-2xl border border-white/10 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
+                              {seller.username?.[0]?.toUpperCase() || "S"}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">
+                              {seller.username}
+                            </div>
+                            <div className="mt-1 text-sm text-[#9CA3AF]">
+                              {seller.listings} active listings
+                            </div>
                           </div>
                         </div>
+
                         <div className="text-right">
                           <div className="text-sm text-[#9CA3AF]">Role</div>
                           <div className="font-bold">
@@ -599,7 +608,7 @@ export default function StealABrainrotPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))
                 )}
               </div>

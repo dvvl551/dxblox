@@ -24,6 +24,30 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "-").toLowerCase();
 }
 
+function ListingImage({
+  src,
+  alt,
+}: {
+  src?: string | null;
+  alt: string;
+}) {
+  if (!src) {
+    return (
+      <div className="flex h-36 w-full items-center justify-center rounded-[18px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-36 w-full rounded-[18px] border border-white/8 object-cover"
+    />
+  );
+}
+
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
@@ -78,8 +102,15 @@ export default function ProfilePage() {
     fetchMyListings();
   }, [user, authLoading]);
 
+  const totalListingsCount = listings.length;
+
   const activeListingsCount = useMemo(
     () => listings.filter((listing) => listing.status === "Available").length,
+    [listings]
+  );
+
+  const soldListingsCount = useMemo(
+    () => listings.filter((listing) => listing.status === "Sold").length,
     [listings]
   );
 
@@ -184,7 +215,9 @@ export default function ProfilePage() {
       if (selectedAvatar) {
         const fileExt = selectedAvatar.type === "image/png" ? "png" : "jpg";
         const safeName = sanitizeFileName(selectedAvatar.name);
-        const filePath = `${user.id}/${Date.now()}-${safeName || `avatar.${fileExt}`}`;
+        const filePath = `${user.id}/${Date.now()}-${
+          safeName || `avatar.${fileExt}`
+        }`;
 
         const { error: uploadError } = await supabase.storage
           .from("avatars")
@@ -253,21 +286,21 @@ export default function ProfilePage() {
         </div>
 
         <section className="grid items-start gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
-            <div className="flex items-start gap-5">
+          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
               {previewAvatar ? (
                 <img
                   src={previewAvatar}
                   alt={username || "Profile avatar"}
-                  className="h-20 w-20 rounded-[24px] border border-white/10 object-cover"
+                  className="h-24 w-24 rounded-[26px] border border-white/10 object-cover"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
+                <div className="flex h-24 w-24 items-center justify-center rounded-[26px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-3xl font-black text-white">
                   {displayInitial}
                 </div>
               )}
 
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-3xl font-black tracking-tight">
                     {username || "Your profile"}
@@ -280,11 +313,36 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                <p className="mt-3 max-w-xl text-sm leading-6 text-[#9CA3AF]">
+                <p className="mt-3 max-w-xl text-sm leading-7 text-[#9CA3AF]">
                   {bio?.trim()
                     ? bio
                     : "Add a short bio to make your seller profile look cleaner and more trustworthy."}
                 </p>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href="/dashboard"
+                    className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                  >
+                    Open dashboard
+                  </Link>
+
+                  <Link
+                    href="/create-listing"
+                    className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                  >
+                    Create listing
+                  </Link>
+
+                  {user && (
+                    <Link
+                      href={`/users/${user.id}`}
+                      className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                    >
+                      View public profile
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -298,7 +356,9 @@ export default function ProfilePage() {
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <div className="text-xs text-[#9CA3AF]">Total listings</div>
-                <div className="mt-1 text-2xl font-bold">{listings.length}</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {totalListingsCount}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
@@ -312,30 +372,28 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/dashboard"
-                className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
-              >
-                Open dashboard
-              </Link>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs text-[#9CA3AF]">Sold listings</div>
+                <div className="mt-1 text-2xl font-bold">{soldListingsCount}</div>
+              </div>
 
-              <Link
-                href="/create-listing"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
-              >
-                Create listing
-              </Link>
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs text-[#9CA3AF]">Email</div>
+                <div className="mt-1 truncate text-sm font-medium text-white/90">
+                  {user?.email || "Not signed in"}
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
             <h2 className="text-2xl font-bold">Edit profile</h2>
-            <p className="mt-4 leading-7 text-[#9CA3AF]">
+            <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
               Update your public seller information and avatar.
             </p>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-5">
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Avatar
@@ -416,15 +474,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm text-[#9CA3AF]">
-                  Email
-                </label>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[#9CA3AF]">
-                  {user?.email || "Not signed in"}
-                </div>
-              </div>
-
               {errorMessage && (
                 <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                   {errorMessage}
@@ -451,7 +500,23 @@ export default function ProfilePage() {
 
         <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
-            <h2 className="text-2xl font-bold">My listings</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold">My listings</h2>
+                <p className="mt-2 text-sm text-[#9CA3AF]">
+                  Quick view of your current live listings.
+                </p>
+              </div>
+
+              {listings.length > 0 && (
+                <Link
+                  href="/dashboard"
+                  className="rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
+                >
+                  Manage in dashboard
+                </Link>
+              )}
+            </div>
 
             {loadingListings ? (
               <div className="mt-5 rounded-2xl border border-white/8 bg-white/5 px-4 py-6 text-sm text-[#9CA3AF]">
@@ -469,17 +534,10 @@ export default function ProfilePage() {
                     href={`/listing/${listing.id}`}
                     className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:border-violet-500/30"
                   >
-                    {listing.image_url ? (
-                      <img
-                        src={listing.image_url}
-                        alt={listing.item_name}
-                        className="h-36 w-full rounded-[18px] border border-white/8 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-36 items-center justify-center rounded-[18px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
-                        No image
-                      </div>
-                    )}
+                    <ListingImage
+                      src={listing.image_url}
+                      alt={listing.item_name}
+                    />
 
                     <div className="mt-4 flex items-start justify-between gap-4">
                       <div>
@@ -521,14 +579,14 @@ export default function ProfilePage() {
                     No recent activity yet.
                   </div>
                 ) : (
-                  recentActivity.map((activity) => (
-                    <div
-                      key={activity}
-                      className="rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-[#9CA3AF]"
-                    >
-                      {activity}
-                    </div>
-                  ))
+recentActivity.map((activity, index) => (
+  <div
+    key={`${activity}-${index}`}
+    className="rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-[#9CA3AF]"
+  >
+    {activity}
+  </div>
+))
                 )}
               </div>
             </div>
