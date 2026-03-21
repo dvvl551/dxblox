@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
@@ -91,6 +92,8 @@ function getPriceNumber(price: string) {
 
 export default function ListingPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [sellerMap, setSellerMap] = useState<Record<string, SellerProfile>>({});
@@ -109,6 +112,46 @@ export default function ListingPage() {
     useState<(typeof SORT_OPTIONS)[number]>("Newest");
 
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search")?.trim() || "";
+    const urlGame = searchParams.get("game")?.trim() || "All games";
+    const urlStatus = searchParams.get("status")?.trim() || "All statuses";
+    const urlCategory = searchParams.get("category")?.trim() || "All categories";
+    const urlOfferType =
+      searchParams.get("offerType")?.trim() || "All offer types";
+    const urlSort = searchParams.get("sort")?.trim() || "Newest";
+
+    setSearch(urlSearch);
+
+    setSelectedGame(
+      GAME_OPTIONS.includes(urlGame as (typeof GAME_OPTIONS)[number])
+        ? (urlGame as (typeof GAME_OPTIONS)[number])
+        : "All games"
+    );
+
+    setSelectedStatus(
+      STATUS_OPTIONS.includes(urlStatus as (typeof STATUS_OPTIONS)[number])
+        ? (urlStatus as (typeof STATUS_OPTIONS)[number])
+        : "All statuses"
+    );
+
+    setSelectedOfferType(
+      OFFER_TYPE_OPTIONS.includes(
+        urlOfferType as (typeof OFFER_TYPE_OPTIONS)[number]
+      )
+        ? (urlOfferType as (typeof OFFER_TYPE_OPTIONS)[number])
+        : "All offer types"
+    );
+
+    setSelectedSort(
+      SORT_OPTIONS.includes(urlSort as (typeof SORT_OPTIONS)[number])
+        ? (urlSort as (typeof SORT_OPTIONS)[number])
+        : "Newest"
+    );
+
+    setSelectedCategory(urlCategory || "All categories");
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -194,17 +237,31 @@ export default function ListingPage() {
     return ["All categories", ...uniqueCategories];
   }, [listings]);
 
+  useEffect(() => {
+    if (
+      selectedCategory !== "All categories" &&
+      !categoryOptions.includes(selectedCategory)
+    ) {
+      setSelectedCategory("All categories");
+    }
+  }, [categoryOptions, selectedCategory]);
+
   const filteredListings = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
 
     const nextListings = listings.filter((listing) => {
+      const seller = sellerMap[listing.user_id];
+      const sellerName = seller?.username?.toLowerCase() || "";
+
       const matchesSearch =
         !searchValue ||
         listing.item_name.toLowerCase().includes(searchValue) ||
         listing.game.toLowerCase().includes(searchValue) ||
         listing.category.toLowerCase().includes(searchValue) ||
         listing.offer_type.toLowerCase().includes(searchValue) ||
-        (listing.description ?? "").toLowerCase().includes(searchValue);
+        listing.price.toLowerCase().includes(searchValue) ||
+        (listing.description ?? "").toLowerCase().includes(searchValue) ||
+        sellerName.includes(searchValue);
 
       const matchesGame =
         selectedGame === "All games" || listing.game === selectedGame;
@@ -229,7 +286,7 @@ export default function ListingPage() {
       );
     });
 
-    const sortedListings = [...nextListings].sort((a, b) => {
+    return [...nextListings].sort((a, b) => {
       if (selectedSort === "Newest") {
         return (
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -252,10 +309,9 @@ export default function ListingPage() {
 
       return 0;
     });
-
-    return sortedListings;
   }, [
     listings,
+    sellerMap,
     search,
     selectedGame,
     selectedStatus,
@@ -287,6 +343,59 @@ export default function ListingPage() {
     selectedOfferType !== "All offer types" ||
     selectedSort !== "Newest";
 
+  const buildQueryString = (next?: {
+    search?: string;
+    game?: string;
+    status?: string;
+    category?: string;
+    offerType?: string;
+    sort?: string;
+  }) => {
+    const params = new URLSearchParams();
+
+    const nextSearch = next?.search ?? search;
+    const nextGame = next?.game ?? selectedGame;
+    const nextStatus = next?.status ?? selectedStatus;
+    const nextCategory = next?.category ?? selectedCategory;
+    const nextOfferType = next?.offerType ?? selectedOfferType;
+    const nextSort = next?.sort ?? selectedSort;
+
+    if (nextSearch.trim()) params.set("search", nextSearch.trim());
+    if (nextGame !== "All games") params.set("game", nextGame);
+    if (nextStatus !== "All statuses") params.set("status", nextStatus);
+    if (nextCategory !== "All categories") params.set("category", nextCategory);
+    if (nextOfferType !== "All offer types") {
+      params.set("offerType", nextOfferType);
+    }
+    if (nextSort !== "Newest") params.set("sort", nextSort);
+
+    const query = params.toString();
+    return query ? `/listing?${query}` : "/listing";
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const currentQuery = searchParams.toString();
+      const nextUrl = buildQueryString({ search });
+      const nextQuery = nextUrl.includes("?") ? nextUrl.split("?")[1] : "";
+
+      if (currentQuery !== nextQuery) {
+        router.replace(nextUrl);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [
+    search,
+    selectedGame,
+    selectedStatus,
+    selectedCategory,
+    selectedOfferType,
+    selectedSort,
+    router,
+    searchParams,
+  ]);
+
   const resetFilters = () => {
     setSearch("");
     setSelectedGame("All games");
@@ -294,6 +403,7 @@ export default function ListingPage() {
     setSelectedCategory("All categories");
     setSelectedOfferType("All offer types");
     setSelectedSort("Newest");
+    router.replace("/listing");
   };
 
   const statusStyle = (status: string) => {
@@ -368,7 +478,7 @@ export default function ListingPage() {
               </label>
               <input
                 type="text"
-                placeholder="Search item, game, category or offer type..."
+                placeholder="Search item, game, category, offer type or seller..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
@@ -381,9 +491,7 @@ export default function ListingPage() {
               </label>
               <select
                 value={selectedGame}
-                onChange={(e) =>
-                  setSelectedGame(e.target.value as (typeof GAME_OPTIONS)[number])
-                }
+                onChange={(e) => setSelectedGame(e.target.value as (typeof GAME_OPTIONS)[number])}
                 className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
               >
                 {GAME_OPTIONS.map((game) => (

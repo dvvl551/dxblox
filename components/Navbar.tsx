@@ -21,16 +21,6 @@ export default function Navbar({ active }: NavbarProps) {
   const { user, loading } = useAuth();
   const { profile } = useProfile();
 
-  const desktopLinkClass = (name: NavbarProps["active"]) =>
-    active === name
-      ? "rounded-xl bg-white/10 px-4 py-2 text-white transition"
-      : "rounded-xl px-4 py-2 text-[#9CA3AF] transition hover:bg-white/5 hover:text-white";
-
-  const mobileLinkClass = (name: NavbarProps["active"]) =>
-    active === name
-      ? "rounded-xl bg-white/10 px-3 py-2 text-white transition"
-      : "rounded-xl bg-white/5 px-3 py-2 text-[#9CA3AF] transition hover:bg-white/10 hover:text-white";
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
@@ -46,26 +36,36 @@ export default function Navbar({ active }: NavbarProps) {
   const avatarUrl = profile?.avatar_url || null;
   const initial = displayName[0]?.toUpperCase() || "A";
 
+  const desktopLinkClass = (name: NavbarProps["active"]) =>
+    active === name
+      ? "rounded-xl bg-white/10 px-4 py-2 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition"
+      : "rounded-xl px-4 py-2 text-[#9CA3AF] transition hover:bg-white/5 hover:text-white";
+
+  const mobileLinkClass = (name: NavbarProps["active"]) =>
+    active === name
+      ? "rounded-xl bg-white/10 px-3 py-2 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition"
+      : "rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[#9CA3AF] transition hover:bg-white/10 hover:text-white";
+
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0B0B12]/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0B0B12]/80 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-violet-500 to-blue-500 font-black text-white shadow-lg shadow-violet-900/30 ring-1 ring-white/10">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-violet-500 to-blue-500 font-black text-white shadow-lg shadow-violet-900/30 ring-1 ring-white/10">
               DX
             </div>
 
             <div className="min-w-0">
-              <div className="truncate text-lg font-bold tracking-tight text-white">
+              <div className="truncate text-lg font-black tracking-tight text-white">
                 Dxblox
               </div>
               <div className="truncate text-xs text-[#9CA3AF]">
-                Trade smarter. Stay safer.
+                Roblox marketplace
               </div>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm md:flex">
+          <nav className="hidden items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm md:flex">
             <Link href="/" className={desktopLinkClass("home")}>
               Home
             </Link>
@@ -89,32 +89,36 @@ export default function Navbar({ active }: NavbarProps) {
             </Link>
 
             {isAdmin && (
-              <>
-                <Link href="/admin/reviews" className={desktopLinkClass("admin")}>
-                  Reviews
-                </Link>
-                <Link href="/admin/users" className={desktopLinkClass("admin")}>
-                  Users
-                </Link>
-              </>
+              <Link href="/admin" className={desktopLinkClass("admin")}>
+                Admin
+              </Link>
             )}
           </nav>
 
           <div className="hidden items-center gap-3 sm:flex">
             {!loading && !user && (
-              <Link
-                href="/login"
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
-              >
-                Sign in
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
+                >
+                  Sign in
+                </Link>
+
+                <Link
+                  href="/create-listing"
+                  className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                >
+                  Post listing
+                </Link>
+              </>
             )}
 
             {!loading && user && (
               <>
                 <Link
                   href="/profile"
-                  className="group flex max-w-[240px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
+                  className="group flex max-w-[250px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
                 >
                   <div className="shrink-0">
                     {avatarUrl ? (
@@ -131,12 +135,12 @@ export default function Navbar({ active }: NavbarProps) {
                   </div>
 
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white group-hover:text-white">
+                    <div className="truncate text-sm font-semibold text-white">
                       {displayName}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="truncate text-xs text-[#9CA3AF]">
-                        View profile
+                        Open profile
                       </span>
 
                       {isAdmin && (
@@ -148,6 +152,13 @@ export default function Navbar({ active }: NavbarProps) {
                   </div>
                 </Link>
 
+                <Link
+                  href="/create-listing"
+                  className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                >
+                  Post listing
+                </Link>
+
                 <button
                   onClick={handleLogout}
                   className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
@@ -156,13 +167,6 @@ export default function Navbar({ active }: NavbarProps) {
                 </button>
               </>
             )}
-
-            <Link
-              href="/create-listing"
-              className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
-            >
-              Post listing
-            </Link>
           </div>
 
           <div className="flex items-center gap-2 sm:hidden">
@@ -226,14 +230,9 @@ export default function Navbar({ active }: NavbarProps) {
           </Link>
 
           {isAdmin && (
-            <>
-              <Link href="/admin/reviews" className={mobileLinkClass("admin")}>
-                Reviews
-              </Link>
-              <Link href="/admin/users" className={mobileLinkClass("admin")}>
-                Users
-              </Link>
-            </>
+            <Link href="/admin" className={mobileLinkClass("admin")}>
+              Admin
+            </Link>
           )}
 
           <Link

@@ -44,6 +44,13 @@ type Conversation = {
   created_at: string;
 };
 
+type ListingEditState = {
+  latestEdit: Submission | null;
+  hasPendingEdit: boolean;
+  lastEditRejected: boolean;
+  lastEditApproved: boolean;
+};
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
@@ -59,6 +66,7 @@ export default function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -109,9 +117,7 @@ export default function DashboardPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        setErrorMessage((prev) =>
-          prev || "Could not load your review requests."
-        );
+        setErrorMessage((prev) => prev || "Could not load your review requests.");
         setSubmissions([]);
         setLoadingSubmissions(false);
         return;
@@ -183,6 +189,13 @@ export default function DashboardPage() {
     [submissions]
   );
 
+  const approvedReviewCount = useMemo(
+    () =>
+      submissions.filter((submission) => submission.review_status === "approved")
+        .length,
+    [submissions]
+  );
+
   const conversationCount = conversations.length;
 
   const latestGame = useMemo(() => {
@@ -207,6 +220,44 @@ export default function DashboardPage() {
 
   const accountType = profile?.role === "admin" ? "Admin" : "User";
   const isAdmin = profile?.role === "admin";
+
+  const editStateByListingId = useMemo(() => {
+    const editSubmissions = submissions.filter(
+      (submission) =>
+        submission.submission_type === "edit" && submission.listing_id
+    );
+
+    const map: Record<string, ListingEditState> = {};
+
+    for (const submission of editSubmissions) {
+      const listingId = submission.listing_id as string;
+      const existing = map[listingId];
+
+      if (!existing) {
+        map[listingId] = {
+          latestEdit: submission,
+          hasPendingEdit: submission.review_status === "pending",
+          lastEditRejected: submission.review_status === "rejected",
+          lastEditApproved: submission.review_status === "approved",
+        };
+        continue;
+      }
+
+      const existingDate = new Date(existing.latestEdit?.created_at ?? 0).getTime();
+      const currentDate = new Date(submission.created_at).getTime();
+
+      if (currentDate > existingDate) {
+        map[listingId] = {
+          latestEdit: submission,
+          hasPendingEdit: submission.review_status === "pending",
+          lastEditRejected: submission.review_status === "rejected",
+          lastEditApproved: submission.review_status === "approved",
+        };
+      }
+    }
+
+    return map;
+  }, [submissions]);
 
   const liveStatusStyle = (status: string) => {
     if (status === "Available") {
@@ -241,8 +292,7 @@ export default function DashboardPage() {
   };
 
   const handleDeleteListing = async (listingId: string) => {
-    if (!user) return;
-    if (deletingId) return;
+    if (!user || deletingId) return;
 
     const confirmed = window.confirm(
       "Are you sure you want to delete this listing?"
@@ -272,6 +322,48 @@ export default function DashboardPage() {
       setErrorMessage("Something went wrong. Please try again.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleUpdateListingStatus = async (
+    listingId: string,
+    nextStatus: "Available" | "Sold"
+  ) => {
+    if (!user || updatingStatusId) return;
+
+    setErrorMessage("");
+    setSuccessMessage("");
+    setUpdatingStatusId(listingId);
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .update({ status: nextStatus })
+        .eq("id", listingId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        setErrorMessage("Could not update listing status. Please try again.");
+        return;
+      }
+
+      setListings((prev) =>
+        prev.map((listing) =>
+          listing.id === listingId
+            ? { ...listing, status: nextStatus }
+            : listing
+        )
+      );
+
+      setSuccessMessage(
+        nextStatus === "Sold"
+          ? "Listing marked as sold."
+          : "Listing marked as available."
+      );
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+    } finally {
+      setUpdatingStatusId(null);
     }
   };
 
@@ -320,10 +412,10 @@ export default function DashboardPage() {
           <span className="text-white">Dashboard</span>
         </div>
 
-        <section className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-            <div className="flex items-start gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
+        <section className="grid items-start gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-xl font-black text-white">
                 {profile?.username?.[0]?.toUpperCase() || "D"}
               </div>
 
@@ -337,44 +429,40 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                <p className="mt-3 max-w-xl text-sm leading-6 text-[#9CA3AF]">
-                  Manage your live listings, review requests, and messages from
-                  one place.
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#9CA3AF]">
+                  Manage your listings, review requests, inbox, and marketplace
+                  activity from one place.
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-6">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-6">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Active</div>
                 <div className="mt-1 text-2xl font-bold">{activeCount}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Live pending</div>
                 <div className="mt-1 text-2xl font-bold">{pendingLiveCount}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Sold</div>
                 <div className="mt-1 text-2xl font-bold">{soldCount}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Review pending</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {pendingReviewCount}
-                </div>
+                <div className="mt-1 text-2xl font-bold">{pendingReviewCount}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Rejected</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {rejectedReviewCount}
-                </div>
+                <div className="mt-1 text-2xl font-bold">{rejectedReviewCount}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Messages</div>
                 <div className="mt-1 text-2xl font-bold">
                   {loadingMessages ? "..." : conversationCount}
@@ -382,82 +470,118 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href="/create-listing"
-                className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
               >
                 Create listing
               </Link>
 
               <Link
                 href="/messages"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
               >
                 Open messages
               </Link>
 
               <Link
                 href="/wishlist"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
               >
                 Open wishlist
               </Link>
 
               {isAdmin && (
-                <>
-                  <Link
-                    href="/admin/reviews"
-                    className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
-                  >
-                    Review requests
-                  </Link>
-                  <Link
-                    href="/admin/users"
-                    className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
-                  >
-                    Admin users
-                  </Link>
-                </>
+                <Link
+                  href="/admin"
+                  className="rounded-2xl border border-violet-500/20 bg-violet-500/10 px-5 py-3 font-semibold text-violet-300 transition hover:bg-violet-500/15"
+                >
+                  Open admin panel
+                </Link>
               )}
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-            <h2 className="text-2xl font-bold">Quick overview</h2>
-            <p className="mt-4 leading-7 text-[#9CA3AF]">
-              This dashboard now shows your public listings, moderation flow,
-              and your messaging activity.
-            </p>
+          <div className="grid gap-5">
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <h2 className="text-2xl font-bold">Quick overview</h2>
+              <p className="mt-4 leading-7 text-[#9CA3AF]">
+                A clearer view of your seller activity, moderation flow and
+                inbox health.
+              </p>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-sm font-semibold">Profile status</div>
-                <div className="mt-2 text-[#9CA3AF]">
-                  {user ? "Connected and active" : "Not signed in"}
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="text-sm font-semibold">Profile status</div>
+                  <div className="mt-2 text-[#9CA3AF]">
+                    {user ? "Connected and active" : "Not signed in"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="text-sm font-semibold">Main game</div>
+                  <div className="mt-2 text-[#9CA3AF]">{latestGame}</div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="text-sm font-semibold">Last activity</div>
+                  <div className="mt-2 text-[#9CA3AF]">{latestActivity}</div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="text-sm font-semibold">Account type</div>
+                  <div className="mt-2 text-[#9CA3AF]">{accountType}</div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4 sm:col-span-2">
+                  <div className="text-sm font-semibold">Inbox activity</div>
+                  <div className="mt-2 text-[#9CA3AF]">{latestMessageActivity}</div>
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-sm font-semibold">Main game</div>
-                <div className="mt-2 text-[#9CA3AF]">{latestGame}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-sm font-semibold">Last activity</div>
-                <div className="mt-2 text-[#9CA3AF]">{latestActivity}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-sm font-semibold">Account type</div>
-                <div className="mt-2 text-[#9CA3AF]">{accountType}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4 sm:col-span-2">
-                <div className="text-sm font-semibold">Inbox activity</div>
-                <div className="mt-2 text-[#9CA3AF]">{latestMessageActivity}</div>
-              </div>
             </div>
+
+            {isAdmin && (
+              <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-2xl font-bold">Admin panel</h2>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85">
+                    Control center
+                  </span>
+                </div>
+
+                <p className="mt-4 text-sm leading-7 text-white/85">
+                  Access moderation tools, reports, users and conversations from
+                  one clean admin hub.
+                </p>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs text-white/70">Pending reviews</div>
+                    <div className="mt-1 text-2xl font-bold">{pendingReviewCount}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs text-white/70">Approved</div>
+                    <div className="mt-1 text-2xl font-bold">{approvedReviewCount}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs text-white/70">Rejected</div>
+                    <div className="mt-1 text-2xl font-bold">{rejectedReviewCount}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <Link
+                    href="/admin"
+                    className="inline-flex rounded-2xl border border-white/10 bg-black/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/20"
+                  >
+                    Open admin control center
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -495,67 +619,140 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {listings.map((listing) => (
-                    <div
-                      key={listing.id}
-                      className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                    >
-                      <Link href={`/listing/${listing.id}`} className="block">
-                        <ListingImage
-                          src={listing.image_url}
-                          alt={listing.item_name}
-                        />
+                  {listings.map((listing) => {
+                    const isUpdatingStatus = updatingStatusId === listing.id;
+                    const isDeleting = deletingId === listing.id;
+                    const editState = editStateByListingId[listing.id];
+                    const latestEdit = editState?.latestEdit ?? null;
+                    const hasPendingEdit = editState?.hasPendingEdit ?? false;
+                    const lastEditRejected = editState?.lastEditRejected ?? false;
+                    const lastEditApproved = editState?.lastEditApproved ?? false;
 
-                        <div className="mt-4 flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-lg font-bold">
-                              {listing.item_name}
+                    return (
+                      <div
+                        key={listing.id}
+                        className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                      >
+                        <Link href={`/listing/${listing.id}`} className="block">
+                          <ListingImage
+                            src={listing.image_url}
+                            alt={listing.item_name}
+                          />
+
+                          <div className="mt-4 flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-lg font-bold">
+                                {listing.item_name}
+                              </div>
+                              <div className="mt-1 text-sm text-[#9CA3AF]">
+                                {listing.game}
+                              </div>
                             </div>
-                            <div className="mt-1 text-sm text-[#9CA3AF]">
-                              {listing.game}
+
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${liveStatusStyle(
+                                listing.status
+                              )}`}
+                            >
+                              {listing.status}
+                            </span>
+                          </div>
+                        </Link>
+
+                        {(hasPendingEdit || lastEditRejected || lastEditApproved) && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {hasPendingEdit && (
+                              <span className="rounded-full border border-orange-500/30 bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-300">
+                                Edit pending review
+                              </span>
+                            )}
+
+                            {!hasPendingEdit && lastEditRejected && (
+                              <span className="rounded-full border border-red-500/30 bg-red-500/15 px-2.5 py-1 text-xs font-medium text-red-300">
+                                Last edit rejected
+                              </span>
+                            )}
+
+                            {!hasPendingEdit && lastEditApproved && (
+                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+                                Last edit approved
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {latestEdit?.review_note && latestEdit.review_status === "rejected" && (
+                          <div className="mt-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-3">
+                            <div className="text-xs text-red-300">Review note</div>
+                            <div className="mt-1 text-sm text-red-200">
+                              {latestEdit.review_note}
                             </div>
                           </div>
+                        )}
 
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${liveStatusStyle(
-                              listing.status
-                            )}`}
-                          >
-                            {listing.status}
-                          </span>
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="text-xl font-bold">{listing.price}</div>
+
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/listing/${listing.id}`}
+                              className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
+                            >
+                              View
+                            </Link>
+
+                            <Link
+                              href={`/edit-listing/${listing.id}`}
+                              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                                hasPendingEdit
+                                  ? "cursor-not-allowed border-white/10 bg-white/5 text-white/40 pointer-events-none"
+                                  : "border-violet-500/20 bg-violet-500/10 text-violet-300 hover:bg-violet-500/15"
+                              }`}
+                            >
+                              {hasPendingEdit ? "Edit pending" : "Edit"}
+                            </Link>
+                          </div>
                         </div>
-                      </Link>
 
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <div className="text-xl font-bold">{listing.price}</div>
-
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/listing/${listing.id}`}
-                            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5"
-                          >
-                            View
-                          </Link>
-
-                          <Link
-                            href={`/edit-listing/${listing.id}`}
-                            className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-300 transition hover:bg-violet-500/15"
-                          >
-                            Edit
-                          </Link>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {listing.status !== "Sold" ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateListingStatus(listing.id, "Sold")
+                              }
+                              disabled={isUpdatingStatus || isDeleting}
+                              className="rounded-xl border border-orange-500/20 bg-orange-500/10 px-4 py-2 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isUpdatingStatus ? "Updating..." : "Mark as sold"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateListingStatus(listing.id, "Available")
+                              }
+                              disabled={isUpdatingStatus || isDeleting}
+                              className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isUpdatingStatus
+                                ? "Updating..."
+                                : "Mark as available"}
+                            </button>
+                          )}
 
                           <button
                             type="button"
                             onClick={() => handleDeleteListing(listing.id)}
-                            disabled={deletingId === listing.id}
+                            disabled={isDeleting || isUpdatingStatus}
                             className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {deletingId === listing.id ? "Deleting..." : "Delete"}
+                            {isDeleting ? "Deleting..." : "Delete"}
                           </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -658,8 +855,7 @@ export default function DashboardPage() {
                           )}
 
                           <div className="mt-4 text-sm text-[#9CA3AF]">
-                            Sent on{" "}
-                            {new Date(submission.created_at).toLocaleString()}
+                            Sent on {new Date(submission.created_at).toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -703,20 +899,12 @@ export default function DashboardPage() {
                 </Link>
 
                 {isAdmin && (
-                  <>
-                    <Link
-                      href="/admin/reviews"
-                      className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
-                    >
-                      Open admin reviews
-                    </Link>
-                    <Link
-                      href="/admin/users"
-                      className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
-                    >
-                      Open admin users
-                    </Link>
-                  </>
+                  <Link
+                    href="/admin"
+                    className="block rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-sm text-violet-300 transition hover:bg-violet-500/15"
+                  >
+                    Open admin panel
+                  </Link>
                 )}
               </div>
             </div>
@@ -755,17 +943,20 @@ export default function DashboardPage() {
 
               <ul className="mt-4 space-y-3 text-sm leading-6 text-white/85">
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Live listings and review requests are now separated clearly
+                  Live listings and review requests are separated clearly
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Rejected requests can show an admin note here
+                  Rejected requests can display the admin note here
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Messages are now accessible directly from your dashboard
+                  Messages are accessible directly from your dashboard
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Pending edits are now visible on each live listing
                 </li>
                 {isAdmin && (
                   <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                    Admin accounts can jump directly to reviews and users
+                    Admin tools are now centralised inside the admin panel
                   </li>
                 )}
               </ul>

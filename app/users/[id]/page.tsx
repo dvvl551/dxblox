@@ -57,7 +57,7 @@ function ListingImage({
 }) {
   if (!src) {
     return (
-      <div className="flex h-44 w-full items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+      <div className="flex h-48 w-full items-center justify-center rounded-[20px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
         No image
       </div>
     );
@@ -67,7 +67,7 @@ function ListingImage({
     <img
       src={src}
       alt={alt}
-      className="h-44 w-full rounded-[18px] border border-white/8 object-cover"
+      className="h-48 w-full rounded-[20px] border border-white/8 object-cover"
     />
   );
 }
@@ -168,6 +168,11 @@ export default function PublicUserProfilePage({
     [listings]
   );
 
+  const pendingCount = useMemo(
+    () => listings.filter((listing) => listing.status === "Pending").length,
+    [listings]
+  );
+
   const soldCount = useMemo(
     () => listings.filter((listing) => listing.status === "Sold").length,
     [listings]
@@ -179,6 +184,18 @@ export default function PublicUserProfilePage({
 
   const gamesCount = useMemo(() => {
     return new Set(listings.map((listing) => listing.game)).size;
+  }, [listings]);
+
+  const mainGame = useMemo(() => {
+    if (listings.length === 0) return "No listings yet";
+
+    const counts: Record<string, number> = {};
+
+    for (const listing of listings) {
+      counts[listing.game] = (counts[listing.game] ?? 0) + 1;
+    }
+
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
   }, [listings]);
 
   const filteredListings = useMemo(() => {
@@ -229,6 +246,16 @@ export default function PublicUserProfilePage({
     });
   }, [profile?.created_at]);
 
+  const joinedLabel = useMemo(() => {
+    if (!profile?.created_at) return "Unknown";
+    const date = new Date(profile.created_at);
+    if (Number.isNaN(date.getTime())) return "Unknown";
+    return date.toLocaleDateString("en-GB", {
+      month: "short",
+      year: "numeric",
+    });
+  }, [profile?.created_at]);
+
   const isOwnProfile = !!user && user.id === userId;
 
   const hasActiveFilters =
@@ -244,9 +271,12 @@ export default function PublicUserProfilePage({
     setSelectedSort("Most recent");
   };
 
+  const sellerInitial = profile?.username?.[0]?.toUpperCase() || "U";
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
 
       <Navbar active="listing" />
 
@@ -269,281 +299,354 @@ export default function PublicUserProfilePage({
           </div>
         ) : (
           <>
-            <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
-                  Public seller profile
-                </div>
+            <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#131320] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <div className="relative border-b border-white/8 bg-[linear-gradient(135deg,rgba(124,92,255,0.18),rgba(61,169,252,0.10),rgba(255,255,255,0.02))] px-6 py-8 sm:px-8 sm:py-10">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_28%)]" />
 
-                <div className="flex flex-col gap-6 md:flex-row md:items-center">
-                  {profile.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.username || "Seller avatar"}
-                      className="h-28 w-28 shrink-0 rounded-full border border-white/10 object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-3xl font-black">
-                      {profile.username?.[0]?.toUpperCase() || "U"}
-                    </div>
-                  )}
+                <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                    {profile.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.username || "Seller avatar"}
+                        className="h-28 w-28 rounded-[28px] border border-white/10 object-cover shadow-2xl shadow-black/25"
+                      />
+                    ) : (
+                      <div className="flex h-28 w-28 items-center justify-center rounded-[28px] bg-gradient-to-br from-violet-500/40 to-blue-500/25 text-4xl font-black text-white shadow-2xl shadow-black/25">
+                        {sellerInitial}
+                      </div>
+                    )}
 
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-3xl font-black tracking-tight">
-                        {profile.username || "Unknown seller"}
-                      </h1>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+                          {profile.username || "Unknown seller"}
+                        </h1>
 
-                      {profile.role === "admin" && (
-                        <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-300">
-                          Admin
+                        {profile.role === "admin" && (
+                          <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-200">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-3 max-w-2xl text-base leading-7 text-white/80">
+                        {profile.bio?.trim()
+                          ? profile.bio
+                          : "This seller has not added a bio yet."}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                          Member since {joinedLabel}
                         </span>
-                      )}
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                          Main game: {mainGame}
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                          {availableCount} active listings
+                        </span>
+                      </div>
                     </div>
+                  </div>
 
-                    <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9CA3AF]">
-                      {profile.bio?.trim()
-                        ? profile.bio
-                        : "This seller has not added a bio yet."}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[#7E859B]">
-                      <span>Seller profile</span>
-                      <span className="hidden sm:inline">•</span>
-                      <span>Member since {memberSince}</span>
-                    </div>
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      {isOwnProfile ? (
-                        <Link
-                          href="/profile"
-                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white transition hover:scale-[1.02]"
-                        >
-                          Edit my profile
-                        </Link>
-                      ) : (
-                        <Link
-                          href="/listing"
-                          className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:bg-white/5"
-                        >
-                          Browse marketplace
-                        </Link>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap gap-3">
+                    {isOwnProfile ? (
+                      <Link
+                        href="/profile"
+                        className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white transition hover:scale-[1.02]"
+                      >
+                        Edit my profile
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/listing"
+                        className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:bg-white/5"
+                      >
+                        Browse marketplace
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="rounded-[26px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-                  <div className="text-xs text-[#9CA3AF]">Total listings</div>
+              <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-5 lg:px-8">
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                    Total
+                  </div>
                   <div className="mt-2 text-3xl font-black">{listings.length}</div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-                  <div className="text-xs text-[#9CA3AF]">Available</div>
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                    Available
+                  </div>
                   <div className="mt-2 text-3xl font-black">{availableCount}</div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-                  <div className="text-xs text-[#9CA3AF]">Sold</div>
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                    Pending
+                  </div>
+                  <div className="mt-2 text-3xl font-black">{pendingCount}</div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                    Sold
+                  </div>
                   <div className="mt-2 text-3xl font-black">{soldCount}</div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-                  <div className="text-xs text-[#9CA3AF]">Games</div>
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                    Games
+                  </div>
                   <div className="mt-2 text-3xl font-black">{gamesCount}</div>
                 </div>
               </div>
             </section>
 
-            <section className="mt-10 rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight">
-                    Seller listings
-                  </h2>
-                  <p className="mt-2 text-[#9CA3AF]">
-                    Public listings from this seller.
-                  </p>
-                </div>
-
-                <div className="text-sm text-[#9CA3AF]">
-                  <span className="font-semibold text-white">
-                    {filteredListings.length}
-                  </span>{" "}
-                  {filteredListings.length === 1
-                    ? "listing found"
-                    : "listings found"}
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search item, game, category..."
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                />
-
-                <select
-                  value={selectedGame}
-                  onChange={(e) => setSelectedGame(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
-                >
-                  {games.map((game) => (
-                    <option
-                      key={game}
-                      value={game}
-                      className="bg-[#131320] text-white"
-                    >
-                      {game}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
-                >
-                  <option value="All statuses" className="bg-[#131320] text-white">
-                    All statuses
-                  </option>
-                  <option value="Available" className="bg-[#131320] text-white">
-                    Available
-                  </option>
-                  <option value="Pending" className="bg-[#131320] text-white">
-                    Pending
-                  </option>
-                  <option value="Sold" className="bg-[#131320] text-white">
-                    Sold
-                  </option>
-                </select>
-
-                <select
-                  value={selectedSort}
-                  onChange={(e) => setSelectedSort(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
-                >
-                  <option value="Most recent" className="bg-[#131320] text-white">
-                    Most recent
-                  </option>
-                  <option value="Lowest price" className="bg-[#131320] text-white">
-                    Lowest price
-                  </option>
-                  <option value="Highest price" className="bg-[#131320] text-white">
-                    Highest price
-                  </option>
-                </select>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
-                <div className="text-xs text-[#9CA3AF]">
-                  {hasActiveFilters
-                    ? "Filters are currently applied"
-                    : "Showing all public listings"}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
-                >
-                  Reset filters
-                </button>
-              </div>
-
-              <div className="mt-8">
-                {filteredListings.length === 0 ? (
-                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-8 text-center">
-                    <div className="text-xl font-bold text-white">
-                      No listings found
-                    </div>
-                    <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
-                      Try changing your search or filters to see more results.
+            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
+              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold tracking-tight">
+                      Seller listings
+                    </h2>
+                    <p className="mt-2 text-[#9CA3AF]">
+                      Public listings from this seller.
                     </p>
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
-                    >
-                      Reset filters
-                    </button>
                   </div>
-                ) : (
-                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    {filteredListings.map((listing) => (
-                      <article
-                        key={listing.id}
-                        className="rounded-[24px] border border-white/10 bg-[#10101A] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
-                      >
-                        <Link href={`/listing/${listing.id}`} className="block">
-                          <ListingImage
-                            src={listing.image_url}
-                            alt={listing.item_name}
-                          />
 
-                          <div className="mt-4 flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="truncate text-lg font-bold">
-                                {listing.item_name}
+                  <div className="text-sm text-[#9CA3AF]">
+                    <span className="font-semibold text-white">
+                      {filteredListings.length}
+                    </span>{" "}
+                    {filteredListings.length === 1
+                      ? "listing found"
+                      : "listings found"}
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search item, game, category..."
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                  />
+
+                  <select
+                    value={selectedGame}
+                    onChange={(e) => setSelectedGame(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    {games.map((game) => (
+                      <option
+                        key={game}
+                        value={game}
+                        className="bg-[#131320] text-white"
+                      >
+                        {game}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="All statuses" className="bg-[#131320] text-white">
+                      All statuses
+                    </option>
+                    <option value="Available" className="bg-[#131320] text-white">
+                      Available
+                    </option>
+                    <option value="Pending" className="bg-[#131320] text-white">
+                      Pending
+                    </option>
+                    <option value="Sold" className="bg-[#131320] text-white">
+                      Sold
+                    </option>
+                  </select>
+
+                  <select
+                    value={selectedSort}
+                    onChange={(e) => setSelectedSort(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="Most recent" className="bg-[#131320] text-white">
+                      Most recent
+                    </option>
+                    <option value="Lowest price" className="bg-[#131320] text-white">
+                      Lowest price
+                    </option>
+                    <option value="Highest price" className="bg-[#131320] text-white">
+                      Highest price
+                    </option>
+                  </select>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
+                  <div className="text-xs text-[#9CA3AF]">
+                    {hasActiveFilters
+                      ? "Filters are currently applied"
+                      : "Showing all public listings"}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                  >
+                    Reset filters
+                  </button>
+                </div>
+
+                <div className="mt-8">
+                  {filteredListings.length === 0 ? (
+                    <div className="rounded-[24px] border border-white/10 bg-white/5 p-8 text-center">
+                      <div className="text-xl font-bold text-white">
+                        No listings found
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
+                        Try changing your search or filters to see more results.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                      {filteredListings.map((listing) => (
+                        <article
+                          key={listing.id}
+                          className="rounded-[24px] border border-white/10 bg-[#10101A] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                        >
+                          <Link href={`/listing/${listing.id}`} className="block">
+                            <ListingImage
+                              src={listing.image_url}
+                              alt={listing.item_name}
+                            />
+
+                            <div className="mt-4 flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="truncate text-lg font-bold">
+                                  {listing.item_name}
+                                </div>
+                                <div className="mt-1 text-sm text-[#9CA3AF]">
+                                  {listing.game} • {listing.category}
+                                </div>
                               </div>
-                              <div className="mt-1 text-sm text-[#9CA3AF]">
-                                {listing.game} • {listing.category}
-                              </div>
+
+                              <span
+                                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
+                                  listing.status
+                                )}`}
+                              >
+                                {listing.status}
+                              </span>
                             </div>
 
-                            <span
-                              className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
-                                listing.status
-                              )}`}
-                            >
-                              {listing.status}
-                            </span>
-                          </div>
-
-                          <div className="mt-4 flex items-center justify-between text-sm">
-                            <span className="text-[#9CA3AF]">Offer type</span>
-                            <span className="font-medium">
-                              {listing.offer_type}
-                            </span>
-                          </div>
-                        </Link>
-
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="text-2xl font-bold">{listing.price}</div>
-
-                          <Link
-                            href={`/listing/${listing.id}`}
-                            className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
-                          >
-                            View listing
+                            <div className="mt-4 flex items-center justify-between text-sm">
+                              <span className="text-[#9CA3AF]">Offer type</span>
+                              <span className="font-medium">
+                                {listing.offer_type}
+                              </span>
+                            </div>
                           </Link>
-                        </div>
 
-                        <div className="mt-4">
-                          <WishlistButton
-                            listingId={listing.id}
-                            listingUserId={listing.user_id}
-                            initialIsWishlisted={wishlistedIds.includes(
-                              listing.id
-                            )}
-                            onChanged={(nextValue) => {
-                              setWishlistedIds((prev) =>
-                                nextValue
-                                  ? [...new Set([...prev, listing.id])]
-                                  : prev.filter((id) => id !== listing.id)
-                              );
-                            }}
-                          />
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <div className="text-2xl font-bold">{listing.price}</div>
+
+                            <Link
+                              href={`/listing/${listing.id}`}
+                              className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                            >
+                              View listing
+                            </Link>
+                          </div>
+
+                          <div className="mt-4">
+                            <WishlistButton
+                              listingId={listing.id}
+                              listingUserId={listing.user_id}
+                              initialIsWishlisted={wishlistedIds.includes(
+                                listing.id
+                              )}
+                              onChanged={(nextValue) => {
+                                setWishlistedIds((prev) =>
+                                  nextValue
+                                    ? [...new Set([...prev, listing.id])]
+                                    : prev.filter((id) => id !== listing.id)
+                                );
+                              }}
+                            />
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              <aside className="space-y-5">
+                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+                  <h3 className="text-xl font-bold">Seller info</h3>
+
+                  <div className="mt-4 space-y-3 text-sm">
+                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="text-xs text-[#9CA3AF]">Username</div>
+                      <div className="mt-1 font-semibold text-white">
+                        {profile.username || "Unknown seller"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="text-xs text-[#9CA3AF]">Member since</div>
+                      <div className="mt-1 font-semibold text-white">
+                        {memberSince}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="text-xs text-[#9CA3AF]">Main game</div>
+                      <div className="mt-1 font-semibold text-white">
+                        {mainGame}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                      <div className="text-xs text-[#9CA3AF]">Profile type</div>
+                      <div className="mt-1 font-semibold text-white">
+                        {profile.role === "admin" ? "Admin seller" : "Seller"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xl font-bold">Seller profile</h3>
+                    <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85">
+                      Public
+                    </span>
+                  </div>
+
+                  <p className="mt-4 text-sm leading-7 text-white/85">
+                    Browse this seller’s public listings and view what is
+                    currently available in their marketplace profile.
+                  </p>
+                </div>
+              </aside>
             </section>
           </>
         )}

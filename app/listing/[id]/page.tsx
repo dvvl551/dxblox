@@ -35,6 +35,61 @@ type SellerProfile = {
   avatar_url: string | null;
 };
 
+type ListingReportRow = {
+  id: string;
+  reason: string;
+  review_status: string;
+};
+
+type Submission = {
+  id: string;
+  listing_id: string | null;
+  user_id: string;
+  submission_type: "create" | "edit";
+  review_status: "pending" | "approved" | "rejected";
+  game: string;
+  category: string;
+  item_name: string;
+  price: string;
+  offer_type: string;
+  status: string;
+  description: string | null;
+  image_url: string | null;
+  proof_url: string | null;
+  review_note: string | null;
+  created_at: string;
+};
+
+function ListingImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div
+        className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${
+          className || ""
+        }`}
+      >
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`border border-white/8 object-cover ${className || ""}`}
+    />
+  );
+}
+
 export default function ListingDetailPage({ params }: ListingPageProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -44,16 +99,23 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [moreFromSeller, setMoreFromSeller] = useState<Listing[]>([]);
+  const [latestEditSubmission, setLatestEditSubmission] =
+    useState<Submission | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [startingConversation, setStartingConversation] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState("Suspicious listing");
   const [reportDetails, setReportDetails] = useState("");
   const [reporting, setReporting] = useState(false);
+
+  const [reportCount, setReportCount] = useState(0);
+  const [pendingReportCount, setPendingReportCount] = useState(0);
+  const [topReportReason, setTopReportReason] = useState<string | null>(null);
 
   const [pageError, setPageError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -81,6 +143,10 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
         setListing(null);
         setSeller(null);
         setMoreFromSeller([]);
+        setLatestEditSubmission(null);
+        setReportCount(0);
+        setPendingReportCount(0);
+        setTopReportReason(null);
         setLoading(false);
         return;
       }
@@ -88,26 +154,70 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
       const typedListing = listingData as Listing;
       setListing(typedListing);
 
-      const [{ data: sellerData }, { data: sellerListingsData }] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select("username, role, avatar_url")
-            .eq("id", typedListing.user_id)
-            .single(),
-          supabase
-            .from("listings")
-            .select(
-              "id, user_id, game, category, item_name, price, offer_type, status, description, image_url, proof_url, created_at"
-            )
-            .eq("user_id", typedListing.user_id)
-            .neq("id", typedListing.id)
-            .order("created_at", { ascending: false })
-            .limit(3),
-        ]);
+      const [
+        { data: sellerData },
+        { data: sellerListingsData },
+        { data: reportsData },
+        { data: editSubmissionsData },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("username, role, avatar_url")
+          .eq("id", typedListing.user_id)
+          .single(),
+        supabase
+          .from("listings")
+          .select(
+            "id, user_id, game, category, item_name, price, offer_type, status, description, image_url, proof_url, created_at"
+          )
+          .eq("user_id", typedListing.user_id)
+          .neq("id", typedListing.id)
+          .order("created_at", { ascending: false })
+          .limit(3),
+        supabase
+          .from("listing_reports")
+          .select("id, reason, review_status")
+          .eq("listing_id", typedListing.id),
+        supabase
+          .from("listing_submissions")
+          .select(
+            "id, listing_id, user_id, submission_type, review_status, game, category, item_name, price, offer_type, status, description, image_url, proof_url, review_note, created_at"
+          )
+          .eq("listing_id", typedListing.id)
+          .eq("submission_type", "edit")
+          .order("created_at", { ascending: false })
+          .limit(1),
+      ]);
 
       setSeller((sellerData as SellerProfile) ?? null);
       setMoreFromSeller((sellerListingsData ?? []) as Listing[]);
+      setLatestEditSubmission(
+        ((editSubmissionsData ?? [])[0] as Submission | undefined) ?? null
+      );
+
+      const typedReports = (reportsData ?? []) as ListingReportRow[];
+      setReportCount(typedReports.length);
+      setPendingReportCount(
+        typedReports.filter((item) => item.review_status === "pending").length
+      );
+
+      if (typedReports.length > 0) {
+        const reasonCounts: Record<string, number> = {};
+
+        typedReports.forEach((item) => {
+          const key = item.reason || "Other";
+          reasonCounts[key] = (reasonCounts[key] || 0) + 1;
+        });
+
+        const sortedReasons = Object.entries(reasonCounts).sort(
+          (a, b) => b[1] - a[1]
+        );
+
+        setTopReportReason(sortedReasons[0]?.[0] || null);
+      } else {
+        setTopReportReason(null);
+      }
+
       setLoading(false);
     };
 
@@ -133,6 +243,36 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
     checkWishlistStatus();
   }, [user, listingId]);
+
+  const refreshReports = async (currentListingId: string) => {
+    const { data: refreshedReports } = await supabase
+      .from("listing_reports")
+      .select("id, reason, review_status")
+      .eq("listing_id", currentListingId);
+
+    const typedReports = (refreshedReports ?? []) as ListingReportRow[];
+    setReportCount(typedReports.length);
+    setPendingReportCount(
+      typedReports.filter((item) => item.review_status === "pending").length
+    );
+
+    if (typedReports.length > 0) {
+      const reasonCounts: Record<string, number> = {};
+
+      typedReports.forEach((item) => {
+        const key = item.reason || "Other";
+        reasonCounts[key] = (reasonCounts[key] || 0) + 1;
+      });
+
+      const sortedReasons = Object.entries(reasonCounts).sort(
+        (a, b) => b[1] - a[1]
+      );
+
+      setTopReportReason(sortedReasons[0]?.[0] || null);
+    } else {
+      setTopReportReason(null);
+    }
+  };
 
   const handleDeleteListing = async () => {
     if (!user || !listing) return;
@@ -164,11 +304,45 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
       setTimeout(() => {
         router.push("/dashboard");
-      }, 1000);
+      }, 900);
     } catch {
       setActionError("Something went wrong. Please try again.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleUpdateListingStatus = async (
+    nextStatus: "Available" | "Sold"
+  ) => {
+    if (!user || !listing || updatingStatus) return;
+
+    setUpdatingStatus(true);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .update({ status: nextStatus })
+        .eq("id", listing.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        setActionError("Could not update listing status. Please try again.");
+        return;
+      }
+
+      setListing((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+      setActionMessage(
+        nextStatus === "Sold"
+          ? "Listing marked as sold."
+          : "Listing marked as available."
+      );
+    } catch {
+      setActionError("Something went wrong. Please try again.");
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -203,7 +377,6 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
           .maybeSingle();
 
       if (existingConversationError) {
-        console.error("Existing conversation error:", existingConversationError);
         setActionError(
           existingConversationError.message ||
             "Could not open conversation. Please try again."
@@ -228,7 +401,6 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
           .single();
 
       if (createConversationError || !newConversation) {
-        console.error("Create conversation error:", createConversationError);
         setActionError(
           createConversationError?.message ||
             "Could not start conversation. Please try again."
@@ -297,6 +469,8 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
       setShowReportForm(false);
       setReportReason("Suspicious listing");
       setReportDetails("");
+
+      await refreshReports(listing.id);
     } catch {
       setActionError("Something went wrong. Please try again.");
     } finally {
@@ -335,33 +509,50 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     return "border-white/10 bg-white/5 text-white/75";
   };
 
-  const ListingImage = ({
-    src,
-    alt,
-    className,
-  }: {
-    src: string | null;
-    alt: string;
-    className?: string;
-  }) => {
-    if (!src) {
-      return (
-        <div
-          className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className || ""}`}
-        >
-          No image
-        </div>
-      );
+  const reportBadgeStyle = useMemo(() => {
+    if (reportCount >= 15) {
+      return "border-red-500/30 bg-red-500/15 text-red-300";
     }
 
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={`border border-white/8 object-cover ${className || ""}`}
-      />
-    );
-  };
+    if (reportCount >= 5) {
+      return "border-orange-500/30 bg-orange-500/15 text-orange-300";
+    }
+
+    if (reportCount >= 1) {
+      return "border-yellow-500/30 bg-yellow-500/15 text-yellow-300";
+    }
+
+    return "border-white/10 bg-white/5 text-white/75";
+  }, [reportCount]);
+
+  const reportLabel = useMemo(() => {
+    if (reportCount >= 15) return "High report volume";
+    if (reportCount >= 5) return "Community flagged";
+    if (reportCount >= 1) return "Reported";
+    return null;
+  }, [reportCount]);
+
+  const publicReportMessage = useMemo(() => {
+    if (reportCount >= 15) {
+      return `This listing has received ${reportCount} community reports and may be under review.`;
+    }
+
+    if (reportCount >= 5) {
+      return `This listing has received ${reportCount} community reports. Please trade carefully.`;
+    }
+
+    if (reportCount >= 1) {
+      return `This listing has received ${reportCount} community report${
+        reportCount > 1 ? "s" : ""
+      }.`;
+    }
+
+    return null;
+  }, [reportCount]);
+
+  const hasPendingEdit = latestEditSubmission?.review_status === "pending";
+  const lastEditRejected = latestEditSubmission?.review_status === "rejected";
+  const lastEditApproved = latestEditSubmission?.review_status === "approved";
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
@@ -401,6 +592,80 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
             {actionError && (
               <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 {actionError}
+              </div>
+            )}
+
+            {isOwner && latestEditSubmission && (
+              <div
+                className={`mb-6 rounded-[24px] border p-4 ${
+                  hasPendingEdit
+                    ? "border-orange-500/20 bg-orange-500/10"
+                    : lastEditRejected
+                    ? "border-red-500/20 bg-red-500/10"
+                    : "border-emerald-500/20 bg-emerald-500/10"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div
+                      className={`text-sm font-semibold ${
+                        hasPendingEdit
+                          ? "text-orange-200"
+                          : lastEditRejected
+                          ? "text-red-200"
+                          : "text-emerald-200"
+                      }`}
+                    >
+                      {hasPendingEdit
+                        ? "Edit request in review"
+                        : lastEditRejected
+                        ? "Last edit was rejected"
+                        : "Last edit was approved"}
+                    </div>
+
+                    <p
+                      className={`mt-1 text-sm leading-7 ${
+                        hasPendingEdit
+                          ? "text-orange-100/90"
+                          : lastEditRejected
+                          ? "text-red-100/90"
+                          : "text-emerald-100/90"
+                      }`}
+                    >
+                      {hasPendingEdit
+                        ? "Your latest edit request is still pending admin review. The live listing remains unchanged until approval."
+                        : lastEditRejected
+                        ? "Your latest edit request was rejected. Review the note below before submitting another update."
+                        : "Your latest edit request was approved successfully."}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      hasPendingEdit
+                        ? "border-orange-500/30 bg-orange-500/15 text-orange-300"
+                        : lastEditRejected
+                        ? "border-red-500/30 bg-red-500/15 text-red-300"
+                        : "border-emerald-500/30 bg-emerald-500/15 text-emerald-300"
+                    }`}
+                  >
+                    {latestEditSubmission.review_status}
+                  </span>
+                </div>
+
+                {latestEditSubmission.review_note && (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs text-white/70">Review note</div>
+                    <div className="mt-2 text-sm text-white/90">
+                      {latestEditSubmission.review_note}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 text-xs text-white/60">
+                  Last edit request sent on{" "}
+                  {new Date(latestEditSubmission.created_at).toLocaleString()}
+                </div>
               </div>
             )}
 
@@ -444,6 +709,20 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                     >
                       {listing.status}
                     </span>
+
+                    {reportLabel && (
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${reportBadgeStyle}`}
+                      >
+                        {reportLabel}
+                      </span>
+                    )}
+
+                    {isOwner && hasPendingEdit && (
+                      <span className="rounded-full border border-orange-500/30 bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-300">
+                        Edit pending review
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-start justify-between gap-4">
@@ -463,6 +742,52 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                       </div>
                     </div>
                   </div>
+
+                  {reportCount > 0 && (
+                    <div className="mt-5 rounded-[24px] border border-orange-500/20 bg-orange-500/10 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-orange-200">
+                            Community signal
+                          </div>
+                          <p className="mt-1 text-sm leading-7 text-orange-100/90">
+                            {publicReportMessage}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 text-sm">
+                          <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                            <div className="text-xs text-orange-200/80">
+                              Total reports
+                            </div>
+                            <div className="mt-1 text-lg font-bold text-white">
+                              {reportCount}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                            <div className="text-xs text-orange-200/80">
+                              Pending
+                            </div>
+                            <div className="mt-1 text-lg font-bold text-white">
+                              {pendingReportCount}
+                            </div>
+                          </div>
+
+                          {topReportReason && (
+                            <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                              <div className="text-xs text-orange-200/80">
+                                Main reason
+                              </div>
+                              <div className="mt-1 text-sm font-semibold text-white">
+                                {topReportReason}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-6 grid grid-cols-2 gap-4">
                     <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
@@ -484,14 +809,43 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                       <>
                         <Link
                           href={`/edit-listing/${listing.id}`}
-                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                          className={`rounded-2xl px-6 py-3 font-semibold shadow-lg shadow-violet-900/30 transition ${
+                            hasPendingEdit
+                              ? "pointer-events-none cursor-not-allowed border border-white/10 bg-white/5 text-white/40 shadow-none"
+                              : "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:scale-[1.02]"
+                          }`}
                         >
-                          Edit listing
+                          {hasPendingEdit ? "Edit pending review" : "Edit listing"}
                         </Link>
+
+                        {listing.status !== "Sold" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateListingStatus("Sold")}
+                            disabled={updatingStatus || deleting}
+                            className="rounded-2xl border border-orange-500/20 bg-orange-500/10 px-6 py-3 font-semibold text-orange-300 transition hover:bg-orange-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingStatus ? "Updating..." : "Mark as sold"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateListingStatus("Available")
+                            }
+                            disabled={updatingStatus || deleting}
+                            className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-6 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingStatus
+                              ? "Updating..."
+                              : "Mark as available"}
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={handleDeleteListing}
-                          disabled={deleting}
+                          disabled={deleting || updatingStatus}
                           className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {deleting ? "Deleting..." : "Delete listing"}
@@ -695,17 +1049,11 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                           href={`/listing/${item.id}`}
                           className="rounded-[22px] border border-white/10 bg-white/5 p-3 transition hover:-translate-y-1 hover:border-violet-500/30"
                         >
-                          {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.item_name}
-                              className="h-32 w-full rounded-2xl border border-white/8 object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-32 w-full items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
-                              No image
-                            </div>
-                          )}
+                          <ListingImage
+                            src={item.image_url}
+                            alt={item.item_name}
+                            className="h-32 w-full rounded-2xl"
+                          />
 
                           <div className="mt-3">
                             <div className="truncate font-semibold">
@@ -749,6 +1097,26 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                       <span className="text-[#9CA3AF]">Published</span>
                       <span className="text-right">{formattedDate}</span>
                     </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[#9CA3AF]">Reports</span>
+                      <span className="text-right font-semibold">
+                        {reportCount}
+                      </span>
+                    </div>
+                    {topReportReason && (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-[#9CA3AF]">Top reason</span>
+                        <span className="text-right">{topReportReason}</span>
+                      </div>
+                    )}
+                    {isOwner && latestEditSubmission && (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-[#9CA3AF]">Last edit review</span>
+                        <span className="text-right capitalize">
+                          {latestEditSubmission.review_status}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Listing ID</span>
                       <span className="max-w-[140px] truncate text-right">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import WishlistButton from "@/components/WishlistButton";
 import { supabase } from "@/lib/supabase";
@@ -46,12 +47,62 @@ const GAME_DESC_MAP: Record<string, string> = {
   "Da Hood": "Weapons, skins and active street-market listings.",
 };
 
+function ListingImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div
+        className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${
+          className || ""
+        }`}
+      >
+        No image
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`border border-white/8 object-cover ${className || ""}`}
+    />
+  );
+}
+
+function Badge({ label }: { label: string }) {
+  const styles: Record<string, string> = {
+    Available: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    Pending: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+    Sold: "bg-red-500/15 text-red-300 border-red-500/30",
+  };
+
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+        styles[label] || "border-white/10 bg-white/10 text-white/80"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function DxbloxHomepage() {
+  const router = useRouter();
   const { user } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -93,11 +144,38 @@ export default function DxbloxHomepage() {
     fetchWishlistIds();
   }, [user]);
 
-  const featuredListings = useMemo(() => listings.slice(0, 6), [listings]);
+  const availableListings = useMemo(
+    () => listings.filter((listing) => listing.status === "Available"),
+    [listings]
+  );
+
+  const featuredListings = useMemo(() => {
+    if (availableListings.length > 0) return availableListings.slice(0, 6);
+    return listings.slice(0, 6);
+  }, [availableListings, listings]);
 
   const featuredListing = useMemo(() => {
-    if (listings.length === 0) return null;
-    return listings[0];
+    if (availableListings.length > 0) return availableListings[0];
+    if (listings.length > 0) return listings[0];
+    return null;
+  }, [availableListings, listings]);
+
+  const stats = useMemo(() => {
+    const available = listings.filter(
+      (listing) => listing.status === "Available"
+    ).length;
+    const sold = listings.filter((listing) => listing.status === "Sold").length;
+    const pending = listings.filter(
+      (listing) => listing.status === "Pending"
+    ).length;
+    const gamesCount = new Set(listings.map((listing) => listing.game)).size;
+
+    return [
+      { label: "Listings", value: listings.length },
+      { label: "Available", value: available },
+      { label: "Games", value: gamesCount },
+      { label: "Sold", value: sold + pending },
+    ];
   }, [listings]);
 
   const games = useMemo(() => {
@@ -116,67 +194,35 @@ export default function DxbloxHomepage() {
     }));
   }, [listings]);
 
-  const Badge = ({ label }: { label: string }) => {
-    const styles: Record<string, string> = {
-      Available: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-      Pending: "bg-orange-500/15 text-orange-300 border-orange-500/30",
-      Sold: "bg-red-500/15 text-red-300 border-red-500/30",
-    };
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
-    return (
-      <span
-        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-          styles[label] || "bg-white/10 text-white/80 border-white/10"
-        }`}
-      >
-        {label}
-      </span>
-    );
-  };
+    const normalizedSearch = search.trim();
 
-  const ListingImage = ({
-    src,
-    alt,
-    className,
-  }: {
-    src: string | null;
-    alt: string;
-    className?: string;
-  }) => {
-    if (!src) {
-      return (
-        <div
-          className={`flex items-center justify-center border border-white/8 bg-white/5 text-sm text-[#9CA3AF] ${className || ""}`}
-        >
-          No image
-        </div>
-      );
+    if (!normalizedSearch) {
+      router.push("/listing");
+      return;
     }
 
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={`border border-white/8 object-cover ${className || ""}`}
-      />
-    );
+    router.push(`/listing?search=${encodeURIComponent(normalizedSearch)}`);
   };
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+    <div className="relative min-h-screen overflow-hidden bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.12),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
 
       <Navbar active="home" />
 
       <main className="relative mx-auto max-w-7xl px-6 py-10">
-        <section className="grid items-center gap-8 py-10 lg:grid-cols-[1.2fr_0.8fr] lg:py-16">
+        <section className="grid items-start gap-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:py-16">
           <div>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
               Independent platform • Not affiliated with Roblox
             </div>
 
             <h1 className="max-w-3xl text-5xl font-black tracking-tight sm:text-6xl">
-              Dxblox
+              Buy and sell Roblox listings faster on Dxblox
             </h1>
 
             <p className="mt-4 max-w-2xl text-xl font-semibold text-white/90">
@@ -184,23 +230,28 @@ export default function DxbloxHomepage() {
             </p>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#9CA3AF]">
-              Discover real listings for popular Roblox games, find trusted
-              sellers and keep your wishlist organized in one clean place.
+              Discover real listings for popular Roblox games, explore active
+              offers, contact sellers and keep your wishlist organized in one
+              clean marketplace.
             </p>
 
-            <div className="mt-8 flex max-w-2xl items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl shadow-black/20">
+            <form
+              onSubmit={handleSearchSubmit}
+              className="mt-8 flex max-w-2xl items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl shadow-black/20"
+            >
               <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-[#73798f]"
                 placeholder="Search a game, item or seller..."
-                readOnly
               />
-              <Link
-                href="/listing"
+              <button
+                type="submit"
                 className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:scale-[1.02]"
               >
                 Browse
-              </Link>
-            </div>
+              </button>
+            </form>
 
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
               <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">
@@ -212,6 +263,20 @@ export default function DxbloxHomepage() {
               <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-violet-300">
                 Fast discovery
               </span>
+            </div>
+
+            <div className="mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4"
+                >
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#9CA3AF]">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -258,21 +323,21 @@ export default function DxbloxHomepage() {
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Price</div>
-                <div className="mt-1 font-semibold">
+                <div className="mt-1 truncate font-semibold">
                   {featuredListing?.price || "—"}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Game</div>
-                <div className="mt-1 font-semibold">
+                <div className="mt-1 truncate font-semibold">
                   {featuredListing?.game || "—"}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Status</div>
-                <div className="mt-1 font-semibold">
+                <div className="mt-1 truncate font-semibold">
                   {featuredListing?.status || "—"}
                 </div>
               </div>
@@ -288,12 +353,21 @@ export default function DxbloxHomepage() {
         </section>
 
         <section className="py-8">
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold tracking-tight">Popular games</h2>
-            <p className="mt-2 text-[#9CA3AF]">
-              Browse listings from the most active Roblox communities on
-              Dxblox.
-            </p>
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Popular games</h2>
+              <p className="mt-2 text-[#9CA3AF]">
+                Browse listings from the most active Roblox communities on
+                Dxblox.
+              </p>
+            </div>
+
+            <Link
+              href="/games"
+              className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
+            >
+              View all games
+            </Link>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
@@ -330,13 +404,22 @@ export default function DxbloxHomepage() {
         </section>
 
         <section className="py-10">
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold tracking-tight">
-              Featured listings
-            </h2>
-            <p className="mt-2 text-[#9CA3AF]">
-              Latest real offers from Dxblox users.
-            </p>
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">
+                Featured listings
+              </h2>
+              <p className="mt-2 text-[#9CA3AF]">
+                Latest real offers from Dxblox users.
+              </p>
+            </div>
+
+            <Link
+              href="/listing"
+              className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
+            >
+              Browse all listings
+            </Link>
           </div>
 
           {loading ? (
@@ -381,7 +464,9 @@ export default function DxbloxHomepage() {
                   </Link>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="text-2xl font-bold">{listing.price}</div>
+                    <div className="truncate text-2xl font-bold">
+                      {listing.price}
+                    </div>
 
                     <Link
                       href={`/listing/${listing.id}`}
@@ -419,23 +504,31 @@ export default function DxbloxHomepage() {
           <div className="grid gap-5 lg:grid-cols-3">
             {[
               {
-                title: "Real listings",
-                text: "Browse real marketplace posts from connected users.",
+                title: "Live listings",
+                text: "Browse active Roblox marketplace posts with cleaner cards, clearer pricing and faster discovery.",
               },
               {
-                title: "Cleaner profiles",
-                text: "Build trust with usernames, bios and better seller pages.",
+                title: "Built-in messaging",
+                text: "Contact sellers directly and keep conversations organized in one place.",
               },
               {
-                title: "Smarter discovery",
-                text: "Search faster, filter better and keep track of wanted items in one place.",
+                title: "Reports & moderation",
+                text: "Safer trading flow with review tools, reports and admin moderation already built in.",
               },
-            ].map((item) => (
+            ].map((item, index) => (
               <div
                 key={item.title}
                 className="rounded-[24px] border border-white/10 bg-[#131320] p-6"
               >
-                <div className="mb-4 h-12 w-12 rounded-2xl bg-violet-500/15" />
+                <div
+                  className={`mb-4 h-12 w-12 rounded-2xl ${
+                    index === 0
+                      ? "bg-emerald-500/15"
+                      : index === 1
+                      ? "bg-sky-500/15"
+                      : "bg-violet-500/15"
+                  }`}
+                />
                 <div className="text-xl font-bold">{item.title}</div>
                 <p className="mt-3 leading-7 text-[#9CA3AF]">{item.text}</p>
               </div>
@@ -444,93 +537,40 @@ export default function DxbloxHomepage() {
         </section>
 
         <section className="py-10">
-          <div className="grid gap-6 rounded-[30px] border border-white/10 bg-[#131320] p-6 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
-            <div>
+          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 lg:p-8">
+            <div className="mx-auto max-w-3xl text-center">
               <div className="text-sm font-medium uppercase tracking-[0.18em] text-violet-300">
-                Wishlist
+                Start on Dxblox
               </div>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight">
-                Track what you want
-              </h2>
-              <p className="mt-4 max-w-xl leading-7 text-[#9CA3AF]">
-                Build your wishlist and keep your search clean across your
-                favorite Roblox games.
-              </p>
-              <Link
-                href="/wishlist"
-                className="mt-6 inline-block rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
-              >
-                Open wishlist
-              </Link>
-            </div>
 
-            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-              {featuredListings.slice(0, 3).length === 0 ? (
-                <div className="rounded-2xl border border-white/8 bg-[#0f1018] px-4 py-3 text-sm text-[#9CA3AF]">
-                  Wishlist preview will look better once you have more listings.
-                </div>
-              ) : (
-                featuredListings.slice(0, 3).map((listing) => (
-                  <div
-                    key={listing.id}
-                    className="mb-3 flex items-center justify-between rounded-2xl border border-white/8 bg-[#0f1018] px-4 py-3 last:mb-0"
-                  >
-                    <div>
-                      <div className="font-semibold">{listing.item_name}</div>
-                      <div className="text-sm text-[#9CA3AF]">
-                        {listing.game}
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
-                      {listing.status}
-                    </span>
-                  </div>
-                ))
-              )}
+              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                Buy, sell and discover Roblox listings faster
+              </h2>
+
+              <p className="mt-4 leading-7 text-[#9CA3AF]">
+                Explore active games, save listings to your wishlist and post
+                your own offers in a cleaner marketplace experience.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                <Link
+                  href="/listing"
+                  className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                >
+                  Browse listings
+                </Link>
+
+                <Link
+                  href="/create-listing"
+                  className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                >
+                  Post a listing
+                </Link>
+              </div>
             </div>
           </div>
         </section>
       </main>
-
-      <footer className="border-t border-white/10 bg-[#0B0B12]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-4">
-          <div>
-            <div className="text-xl font-bold">Dxblox</div>
-            <p className="mt-3 max-w-xs text-sm leading-6 text-[#9CA3AF]">
-              A cleaner way to discover listings, trusted sellers and wishlist
-              tracking for popular Roblox games.
-            </p>
-          </div>
-
-          <div>
-            <div className="font-semibold">Platform</div>
-            <div className="mt-3 space-y-2 text-sm text-[#9CA3AF]">
-              <div>Home</div>
-              <div>Games</div>
-              <div>Listings</div>
-              <div>Wishlist</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="font-semibold">Support</div>
-            <div className="mt-3 space-y-2 text-sm text-[#9CA3AF]">
-              <div>Help</div>
-              <div>Contact</div>
-              <div>Report</div>
-              <div>Premium</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="font-semibold">Legal</div>
-            <p className="mt-3 text-sm leading-6 text-[#9CA3AF]">
-              Dxblox is an independent platform and is not affiliated with
-              Roblox.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

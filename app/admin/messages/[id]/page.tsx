@@ -5,8 +5,9 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
-type MessagePageProps = {
+type AdminMessagePageProps = {
   params: Promise<{
     id: string;
   }>;
@@ -70,8 +71,11 @@ function ListingImage({
   );
 }
 
-export default function MessageConversationPage({ params }: MessagePageProps) {
+export default function AdminMessageConversationPage({
+  params,
+}: AdminMessagePageProps) {
   const { user, loading: authLoading } = useAuth();
+  const { profile } = useProfile();
   const { id: conversationId } = use(params);
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -80,14 +84,12 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
   const [sellerProfile, setSellerProfile] = useState<ProfileRow | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
 
-  const [messageInput, setMessageInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-
   const [errorMessage, setErrorMessage] = useState("");
-  const [actionMessage, setActionMessage] = useState("");
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const isAdmin = profile?.role === "admin";
 
   useEffect(() => {
     if (!conversationId || authLoading) return;
@@ -95,13 +97,18 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
     const fetchConversation = async () => {
       if (!user) {
         setLoading(false);
-        setErrorMessage("You must be signed in to view this conversation.");
+        setErrorMessage("You must be signed in.");
+        return;
+      }
+
+      if (profile && profile.role !== "admin") {
+        setLoading(false);
+        setErrorMessage("Access denied.");
         return;
       }
 
       setLoading(true);
       setErrorMessage("");
-      setActionMessage("");
 
       const { data: conversationData, error: conversationError } =
         await supabase
@@ -122,22 +129,6 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
       }
 
       const typedConversation = conversationData as Conversation;
-
-      const isParticipant =
-        typedConversation.buyer_id === user.id ||
-        typedConversation.seller_id === user.id;
-
-      if (!isParticipant) {
-        setConversation(null);
-        setListing(null);
-        setBuyerProfile(null);
-        setSellerProfile(null);
-        setMessages([]);
-        setErrorMessage("You do not have access to this conversation.");
-        setLoading(false);
-        return;
-      }
-
       setConversation(typedConversation);
 
       const [
@@ -183,129 +174,41 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
     };
 
     fetchConversation();
-  }, [conversationId, user, authLoading]);
+  }, [conversationId, user, authLoading, profile]);
 
   useEffect(() => {
-    if (!conversationId || !conversation || !user) return;
-
-    const mergeMessages = (incoming: MessageRow[]) => {
-      setMessages((prev) => {
-        const map = new Map<string, MessageRow>();
-
-        [...prev, ...incoming].forEach((message) => {
-          map.set(message.id, message);
-        });
-
-        return Array.from(map.values()).sort(
-          (a, b) =>
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-      });
-    };
+    if (!conversationId || !user || !isAdmin) return;
 
     const channel = supabase
-      .channel(`messages-${conversationId}`)
+      .channel(`admin-messages-${conversationId}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          const newMessage = payload.new as MessageRow;
-          mergeMessages([newMessage]);
+        async () => {
+          const { data } = await supabase
+            .from("messages")
+            .select("id, conversation_id, sender_id, content, created_at")
+            .eq("conversation_id", conversationId)
+            .order("created_at", { ascending: true });
+
+          setMessages((data ?? []) as MessageRow[]);
         }
       )
-      .subscribe((status) => {
-        console.log("Realtime status:", status);
-      });
-
-    const pollInterval = window.setInterval(async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("id, conversation_id, sender_id, content, created_at")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (!error && data) {
-        mergeMessages(data as MessageRow[]);
-      }
-    }, 2500);
+      .subscribe();
 
     return () => {
-      window.clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [conversationId, conversation, user]);
+  }, [conversationId, user, isAdmin]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  const handleSendMessage = async () => {
-    if (!user || !conversation) return;
-    if (sending) return;
-
-    const content = messageInput.trim();
-
-    if (!content) return;
-
-    if (content.length > 1000) {
-      setErrorMessage("Message is too long.");
-      setActionMessage("");
-      return;
-    }
-
-    setSending(true);
-    setErrorMessage("");
-    setActionMessage("");
-
-    try {
-      const tempContent = content;
-
-      const { data: insertedMessage, error } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          sender_id: user.id,
-          content: tempContent,
-        })
-        .select("id, conversation_id, sender_id, content, created_at")
-        .single();
-
-      if (error || !insertedMessage) {
-        console.error("Send message error:", error);
-        setErrorMessage(
-          error?.message || "Could not send message. Please try again."
-        );
-        return;
-      }
-
-      setMessages((prev) => {
-        if (prev.some((item) => item.id === insertedMessage.id)) {
-          return prev;
-        }
-
-        return [...prev, insertedMessage as MessageRow].sort(
-          (a, b) =>
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-      });
-
-      setMessageInput("");
-    } catch {
-      setErrorMessage("Something went wrong. Please try again.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const otherUser = useMemo(() => {
-    if (!conversation || !user) return null;
-    return conversation.buyer_id === user.id ? sellerProfile : buyerProfile;
-  }, [conversation, user, buyerProfile, sellerProfile]);
 
   const formatMessageTime = (value: string) => {
     const date = new Date(value);
@@ -328,11 +231,33 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
     });
   };
 
+  const otherSummary = useMemo(() => {
+    if (!buyerProfile || !sellerProfile) return null;
+
+    return {
+      buyerName: buyerProfile.username || "Unknown buyer",
+      sellerName: sellerProfile.username || "Unknown seller",
+    };
+  }, [buyerProfile, sellerProfile]);
+
+  if (!loading && (!user || !isAdmin)) {
+    return (
+      <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+        <Navbar />
+        <main className="mx-auto max-w-4xl px-6 py-16">
+          <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
+            {errorMessage || "Access denied."}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
 
-      <Navbar active="messages" />
+      <Navbar active="admin" />
 
       <main className="relative mx-auto max-w-7xl px-6 py-10">
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
@@ -340,7 +265,15 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
             Home
           </Link>
           <span>/</span>
-          <Link href="/messages" className="transition hover:text-white">
+          <Link href="/dashboard" className="transition hover:text-white">
+            Dashboard
+          </Link>
+          <span>/</span>
+          <Link href="/admin" className="transition hover:text-white">
+            Admin
+          </Link>
+          <span>/</span>
+          <Link href="/admin/messages" className="transition hover:text-white">
             Messages
           </Link>
           <span>/</span>
@@ -362,22 +295,7 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
           <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
             Loading conversation...
           </div>
-        ) : !user ? (
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-center">
-            <div className="text-xl font-bold text-white">
-              Sign in to access messages
-            </div>
-            <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
-              You need an account to view this conversation.
-            </p>
-            <Link
-              href="/login"
-              className="mt-5 inline-flex rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
-            >
-              Go to login
-            </Link>
-          </div>
-        ) : conversation && listing ? (
+        ) : conversation ? (
           <section className="grid gap-8 xl:grid-cols-[320px_1fr]">
             <aside className="space-y-5">
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
@@ -386,17 +304,20 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <ListingImage src={listing.image_url} alt={listing.item_name} />
+                  <ListingImage
+                    src={listing?.image_url || null}
+                    alt={listing?.item_name || "Conversation listing"}
+                  />
 
                   <div className="min-w-0">
                     <div className="truncate text-lg font-bold text-white">
-                      {listing.item_name}
+                      {listing?.item_name || "Deleted listing"}
                     </div>
                     <div className="mt-1 text-sm text-[#9CA3AF]">
-                      {listing.game} • {listing.category}
+                      {listing ? `${listing.game} • ${listing.category}` : "Listing unavailable"}
                     </div>
                     <div className="mt-3 text-xl font-bold text-emerald-300">
-                      {listing.price}
+                      {listing?.price || "Unknown"}
                     </div>
                   </div>
                 </div>
@@ -405,17 +326,19 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-[#9CA3AF]">Status</span>
                     <span className="font-semibold text-white">
-                      {listing.status}
+                      {listing?.status || "Unknown"}
                     </span>
                   </div>
                 </div>
 
-                <Link
-                  href={`/listing/${listing.id}`}
-                  className="mt-5 block w-full rounded-2xl border border-white/10 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/5"
-                >
-                  View listing
-                </Link>
+                {listing && (
+                  <Link
+                    href={`/listing/${listing.id}`}
+                    className="mt-5 block w-full rounded-2xl border border-white/10 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/5"
+                  >
+                    View listing
+                  </Link>
+                )}
               </div>
 
               <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
@@ -427,8 +350,7 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                   {[buyerProfile, sellerProfile].filter(Boolean).map((profileItem) => {
                     const typedProfile = profileItem as ProfileRow;
                     const username = typedProfile.username || "Unknown user";
-                    const isMe = typedProfile.id === user.id;
-                    const isAdmin = typedProfile.role === "admin";
+                    const isAdminProfile = typedProfile.role === "admin";
                     const roleLabel =
                       typedProfile.id === conversation.buyer_id ? "Buyer" : "Seller";
 
@@ -459,13 +381,7 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                               {roleLabel}
                             </span>
 
-                            {isMe && (
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/75">
-                                You
-                              </span>
-                            )}
-
-                            {isAdmin && (
+                            {isAdminProfile && (
                               <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
                                 Admin
                               </span>
@@ -488,10 +404,12 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <div className="text-2xl font-bold text-white">
-                      Conversation with {otherUser?.username || "Unknown user"}
+                      {otherSummary
+                        ? `${otherSummary.buyerName} ↔ ${otherSummary.sellerName}`
+                        : "Conversation"}
                     </div>
                     <div className="mt-1 text-sm text-[#9CA3AF]">
-                      Stay on Dxblox and trade carefully.
+                      Admin read-only conversation view.
                     </div>
                   </div>
 
@@ -517,27 +435,21 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                     </p>
                   </div>
                 )}
-
-                {actionMessage && (
-                  <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                    {actionMessage}
-                  </div>
-                )}
               </div>
 
-              <div className="max-h-[560px] space-y-4 overflow-y-auto px-6 pb-6">
+              <div className="max-h-[620px] space-y-4 overflow-y-auto px-6 pb-6">
                 {messages.length === 0 ? (
                   <div className="rounded-[24px] border border-white/10 bg-white/5 p-8 text-center">
                     <div className="text-lg font-bold text-white">
                       No messages yet
                     </div>
                     <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
-                      Start the conversation below.
+                      This conversation has no message history.
                     </p>
                   </div>
                 ) : (
                   messages.map((message) => {
-                    const isMine = message.sender_id === user.id;
+                    const isBuyerMessage = message.sender_id === buyerProfile?.id;
                     const senderProfile =
                       message.sender_id === buyerProfile?.id
                         ? buyerProfile
@@ -546,26 +458,35 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                     return (
                       <div
                         key={message.id}
-                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                        className={`flex ${
+                          isBuyerMessage ? "justify-start" : "justify-end"
+                        }`}
                       >
                         <div
                           className={`max-w-[80%] rounded-[24px] px-4 py-3 shadow-sm ${
-                            isMine
-                              ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white"
-                              : "border border-white/10 bg-white/5 text-white"
+                            isBuyerMessage
+                              ? "border border-white/10 bg-white/5 text-white"
+                              : "bg-gradient-to-r from-violet-600 to-blue-600 text-white"
                           }`}
                         >
                           <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
                             <span
                               className={
-                                isMine ? "text-white/80" : "text-[#9CA3AF]"
+                                isBuyerMessage ? "text-[#9CA3AF]" : "text-white/80"
                               }
                             >
                               {senderProfile?.username || "Unknown user"}
                             </span>
                             <span
                               className={
-                                isMine ? "text-white/60" : "text-[#6F778B]"
+                                isBuyerMessage ? "text-[#6F778B]" : "text-white/60"
+                              }
+                            >
+                              {isBuyerMessage ? "Buyer" : "Seller"}
+                            </span>
+                            <span
+                              className={
+                                isBuyerMessage ? "text-[#6F778B]" : "text-white/60"
                               }
                             >
                               {formatMessageTime(message.created_at)}
@@ -585,30 +506,8 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
               </div>
 
               <div className="border-t border-white/8 px-6 py-5">
-                <div className="rounded-[24px] border border-white/10 bg-white/5 p-3">
-                  <textarea
-                    rows={4}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="Write your message..."
-                    maxLength={1000}
-                    className="w-full resize-none bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-[#73798f]"
-                  />
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-xs text-[#9CA3AF]">
-                      {messageInput.trim().length}/1000 characters
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSendMessage}
-                      disabled={sending || messageInput.trim().length === 0}
-                      className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {sending ? "Sending..." : "Send message"}
-                    </button>
-                  </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm text-[#9CA3AF]">
+                  This admin view is read only. Message sending is disabled here.
                 </div>
               </div>
             </div>

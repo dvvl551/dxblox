@@ -33,7 +33,7 @@ function ListingImage({
 }) {
   if (!src) {
     return (
-      <div className="flex h-36 w-full items-center justify-center rounded-[18px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
+      <div className="flex h-40 w-full items-center justify-center rounded-[20px] border border-white/8 bg-black/20 text-sm text-[#9CA3AF]">
         No image
       </div>
     );
@@ -43,7 +43,7 @@ function ListingImage({
     <img
       src={src}
       alt={alt}
-      className="h-36 w-full rounded-[18px] border border-white/8 object-cover"
+      className="h-40 w-full rounded-[20px] border border-white/8 object-cover"
     />
   );
 }
@@ -109,6 +109,11 @@ export default function ProfilePage() {
     [listings]
   );
 
+  const pendingListingsCount = useMemo(
+    () => listings.filter((listing) => listing.status === "Pending").length,
+    [listings]
+  );
+
   const soldListingsCount = useMemo(
     () => listings.filter((listing) => listing.status === "Sold").length,
     [listings]
@@ -117,6 +122,16 @@ export default function ProfilePage() {
   const joinedYear = useMemo(() => {
     if (!user?.created_at) return "—";
     return new Date(user.created_at).getFullYear().toString();
+  }, [user]);
+
+  const joinedLabel = useMemo(() => {
+    if (!user?.created_at) return "Unknown";
+    const date = new Date(user.created_at);
+    if (Number.isNaN(date.getTime())) return "Unknown";
+    return date.toLocaleDateString("en-GB", {
+      month: "short",
+      year: "numeric",
+    });
   }, [user]);
 
   const mainGame = useMemo(() => {
@@ -133,9 +148,20 @@ export default function ProfilePage() {
 
   const recentActivity = useMemo(() => {
     if (listings.length === 0) return [];
-    return listings
-      .slice(0, 4)
-      .map((listing) => `Posted or updated ${listing.item_name}`);
+
+    return listings.slice(0, 4).map((listing) => ({
+      id: listing.id,
+      text:
+        listing.status === "Sold"
+          ? `Sold ${listing.item_name}`
+          : listing.status === "Pending"
+          ? `Updated ${listing.item_name} and it's pending`
+          : `Posted ${listing.item_name}`,
+      date: new Date(listing.created_at).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+      }),
+    }));
   }, [listings]);
 
   const badgeStyle = (status: string) => {
@@ -272,7 +298,8 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
 
       <Navbar />
 
@@ -285,226 +312,129 @@ export default function ProfilePage() {
           <span className="text-white">Profile</span>
         </div>
 
-        <section className="grid items-start gap-8 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-              {previewAvatar ? (
-                <img
-                  src={previewAvatar}
-                  alt={username || "Profile avatar"}
-                  className="h-24 w-24 rounded-[26px] border border-white/10 object-cover"
-                />
-              ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-[26px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-3xl font-black text-white">
-                  {displayInitial}
-                </div>
-              )}
+        <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#131320] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+          <div className="relative border-b border-white/8 bg-[linear-gradient(135deg,rgba(124,92,255,0.18),rgba(61,169,252,0.10),rgba(255,255,255,0.02))] px-6 py-8 sm:px-8 sm:py-10">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_28%)]" />
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-3xl font-black tracking-tight">
-                    {username || "Your profile"}
-                  </h1>
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                {previewAvatar ? (
+                  <img
+                    src={previewAvatar}
+                    alt={username || "Profile avatar"}
+                    className="h-28 w-28 rounded-[28px] border border-white/10 object-cover shadow-2xl shadow-black/25"
+                  />
+                ) : (
+                  <div className="flex h-28 w-28 items-center justify-center rounded-[28px] bg-gradient-to-br from-violet-500/40 to-blue-500/25 text-4xl font-black text-white shadow-2xl shadow-black/25">
+                    {displayInitial}
+                  </div>
+                )}
 
-                  {profile?.role === "admin" && (
-                    <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-300">
-                      Admin
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+                      {username || "Your profile"}
+                    </h1>
+
+                    {profile?.role === "admin" && (
+                      <span className="rounded-full border border-violet-400/30 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-200">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-white/80">
+                    {bio?.trim()
+                      ? bio
+                      : "Add a bio to make your profile look cleaner, more trusted and more memorable for buyers and sellers."}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                      Joined {joinedLabel}
                     </span>
-                  )}
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                      Main game: {mainGame}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                      {activeListingsCount} active listings
+                    </span>
+                  </div>
                 </div>
+              </div>
 
-                <p className="mt-3 max-w-xl text-sm leading-7 text-[#9CA3AF]">
-                  {bio?.trim()
-                    ? bio
-                    : "Add a short bio to make your seller profile look cleaner and more trustworthy."}
-                </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/dashboard"
+                  className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                >
+                  Open dashboard
+                </Link>
 
-                <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href="/create-listing"
+                  className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                >
+                  Create listing
+                </Link>
+
+                {user && (
                   <Link
-                    href="/dashboard"
-                    className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
-                  >
-                    Open dashboard
-                  </Link>
-
-                  <Link
-                    href="/create-listing"
+                    href={`/users/${user.id}`}
                     className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
                   >
-                    Create listing
+                    Public profile
                   </Link>
-
-                  {user && (
-                    <Link
-                      href={`/users/${user.id}`}
-                      className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
-                    >
-                      View public profile
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Active listings</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {activeListingsCount}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Total listings</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {totalListingsCount}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Joined</div>
-                <div className="mt-1 text-2xl font-bold">{joinedYear}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Main game</div>
-                <div className="mt-1 text-2xl font-bold">{mainGame}</div>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Sold listings</div>
-                <div className="mt-1 text-2xl font-bold">{soldListingsCount}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Email</div>
-                <div className="mt-1 truncate text-sm font-medium text-white/90">
-                  {user?.email || "Not signed in"}
-                </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-            <h2 className="text-2xl font-bold">Edit profile</h2>
-            <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
-              Update your public seller information and avatar.
-            </p>
-
-            <div className="mt-6 space-y-5">
-              <div>
-                <label className="mb-2 block text-sm text-[#9CA3AF]">
-                  Avatar
-                </label>
-
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-4">
-                  <div className="mb-4 flex items-center gap-4">
-                    {previewAvatar ? (
-                      <img
-                        src={previewAvatar}
-                        alt="Avatar preview"
-                        className="h-20 w-20 rounded-[20px] border border-white/10 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-20 w-20 items-center justify-center rounded-[20px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
-                        {displayInitial}
-                      </div>
-                    )}
-
-                    <div className="text-sm text-[#9CA3AF]">
-                      JPG / PNG only. Max size: 3 MB.
-                    </div>
-                  </div>
-
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    onChange={(e) =>
-                      handleAvatarChange(e.target.files?.[0] ?? null)
-                    }
-                    className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
-                  />
-
-                  {selectedAvatar && (
-                    <div className="mt-3 text-sm text-emerald-300">
-                      Selected: {selectedAvatar.name}
-                    </div>
-                  )}
-                </div>
+          <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-5 lg:px-8">
+            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                Active
               </div>
+              <div className="mt-2 text-3xl font-black">{activeListingsCount}</div>
+            </div>
 
-              <div>
-                <label className="mb-2 block text-sm text-[#9CA3AF]">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  maxLength={20}
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    if (errorMessage) setErrorMessage("");
-                    if (successMessage) setSuccessMessage("");
-                  }}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                  placeholder="Enter your username"
-                />
+            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                Total
               </div>
+              <div className="mt-2 text-3xl font-black">{totalListingsCount}</div>
+            </div>
 
-              <div>
-                <label className="mb-2 block text-sm text-[#9CA3AF]">
-                  Bio
-                </label>
-                <textarea
-                  rows={5}
-                  maxLength={300}
-                  value={bio}
-                  onChange={(e) => {
-                    setBio(e.target.value);
-                    if (errorMessage) setErrorMessage("");
-                    if (successMessage) setSuccessMessage("");
-                  }}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
-                  placeholder="Write a short bio about your seller profile"
-                />
-                <div className="mt-2 text-right text-xs text-[#73798f]">
-                  {bio.length}/300
-                </div>
+            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                Pending
               </div>
+              <div className="mt-2 text-3xl font-black">{pendingListingsCount}</div>
+            </div>
 
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                  {errorMessage}
-                </div>
-              )}
+            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                Sold
+              </div>
+              <div className="mt-2 text-3xl font-black">{soldListingsCount}</div>
+            </div>
 
-              {successMessage && (
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                  {successMessage}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSaveProfile}
-                disabled={saving}
-                className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save profile"}
-              </button>
+            <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
+                Joined
+              </div>
+              <div className="mt-2 text-3xl font-black">{joinedYear}</div>
             </div>
           </div>
         </section>
 
-        <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6">
+        <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px]">
+          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold">My listings</h2>
+                <h2 className="text-2xl font-bold">Seller showcase</h2>
                 <p className="mt-2 text-sm text-[#9CA3AF]">
-                  Quick view of your current live listings.
+                  A cleaner look at your latest listings.
                 </p>
               </div>
 
@@ -532,7 +462,7 @@ export default function ProfilePage() {
                   <Link
                     key={listing.id}
                     href={`/listing/${listing.id}`}
-                    className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:border-violet-500/30"
+                    className="group rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
                   >
                     <ListingImage
                       src={listing.image_url}
@@ -540,8 +470,8 @@ export default function ProfilePage() {
                     />
 
                     <div className="mt-4 flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-lg font-bold">
+                      <div className="min-w-0">
+                        <div className="truncate text-lg font-bold">
                           {listing.item_name}
                         </div>
                         <div className="mt-1 text-sm text-[#9CA3AF]">
@@ -560,7 +490,7 @@ export default function ProfilePage() {
 
                     <div className="mt-4 flex items-center justify-between">
                       <div className="text-xl font-bold">{listing.price}</div>
-                      <div className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/5">
+                      <div className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/90 transition group-hover:bg-white/5">
                         View listing
                       </div>
                     </div>
@@ -572,6 +502,116 @@ export default function ProfilePage() {
 
           <aside className="space-y-5">
             <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <h2 className="text-2xl font-bold">Edit profile</h2>
+              <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
+                Update your public seller information and avatar.
+              </p>
+
+              <div className="mt-6 space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm text-[#9CA3AF]">
+                    Avatar
+                  </label>
+
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-4">
+                    <div className="mb-4 flex items-center gap-4">
+                      {previewAvatar ? (
+                        <img
+                          src={previewAvatar}
+                          alt="Avatar preview"
+                          className="h-20 w-20 rounded-[20px] border border-white/10 object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-[20px] bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-2xl font-black text-white">
+                          {displayInitial}
+                        </div>
+                      )}
+
+                      <div className="text-sm text-[#9CA3AF]">
+                        JPG / PNG only. Max size: 3 MB.
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      onChange={(e) =>
+                        handleAvatarChange(e.target.files?.[0] ?? null)
+                      }
+                      className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
+                    />
+
+                    {selectedAvatar && (
+                      <div className="mt-3 text-sm text-emerald-300">
+                        Selected: {selectedAvatar.name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-[#9CA3AF]">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={20}
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                      if (successMessage) setSuccessMessage("");
+                    }}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                    placeholder="Enter your username"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-[#9CA3AF]">
+                    Bio
+                  </label>
+                  <textarea
+                    rows={5}
+                    maxLength={300}
+                    value={bio}
+                    onChange={(e) => {
+                      setBio(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                      if (successMessage) setSuccessMessage("");
+                    }}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                    placeholder="Write a short bio about your seller profile"
+                  />
+                  <div className="mt-2 text-right text-xs text-[#73798f]">
+                    {bio.length}/300
+                  </div>
+                </div>
+
+                {errorMessage && (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {errorMessage}
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                    {successMessage}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? "Saving..." : "Save profile"}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
               <h3 className="text-xl font-bold">Recent activity</h3>
               <div className="mt-4 space-y-3">
                 {recentActivity.length === 0 ? (
@@ -579,14 +619,17 @@ export default function ProfilePage() {
                     No recent activity yet.
                   </div>
                 ) : (
-recentActivity.map((activity, index) => (
-  <div
-    key={`${activity}-${index}`}
-    className="rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-[#9CA3AF]"
-  >
-    {activity}
-  </div>
-))
+                  recentActivity.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="rounded-2xl border border-white/8 bg-white/5 p-4"
+                    >
+                      <div className="text-sm text-white/90">{activity.text}</div>
+                      <div className="mt-1 text-xs text-[#9CA3AF]">
+                        {activity.date}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -601,13 +644,16 @@ recentActivity.map((activity, index) => (
 
               <ul className="mt-4 space-y-3 text-sm leading-6 text-white/85">
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Use a clean username
+                  Use a clean username people remember
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Add a short bio for trust
+                  Keep your bio short and trustworthy
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-                  Upload a clean avatar
+                  Upload a clean avatar for better trust
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Keep your best listings active and updated
                 </li>
               </ul>
             </div>
