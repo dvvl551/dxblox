@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
@@ -50,7 +50,7 @@ function getStatusClasses(status: string) {
   return "border-violet-500/20 bg-violet-500/10 text-violet-200";
 }
 
-export default function SupportInboxPage() {
+function SupportInboxPageContent() {
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
 
@@ -443,5 +443,21 @@ export default function SupportInboxPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SupportInboxPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#030712] text-white">
+          <div className="mx-auto max-w-7xl px-6 py-10 text-sm text-[#9CA3AF]">
+            Loading support inbox...
+          </div>
+        </div>
+      }
+    >
+      <SupportInboxPageContent />
+    </Suspense>
   );
 }

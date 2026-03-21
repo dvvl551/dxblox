@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import WishlistButton from "@/components/WishlistButton";
@@ -90,7 +90,7 @@ function getPriceNumber(price: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export default function ListingPage() {
+function ListingPageContent() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -491,7 +491,9 @@ export default function ListingPage() {
               </label>
               <select
                 value={selectedGame}
-                onChange={(e) => setSelectedGame(e.target.value as (typeof GAME_OPTIONS)[number])}
+                onChange={(e) =>
+                  setSelectedGame(e.target.value as (typeof GAME_OPTIONS)[number])
+                }
                 className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
               >
                 {GAME_OPTIONS.map((game) => (
@@ -775,5 +777,21 @@ export default function ListingPage() {
         </section>
       </main>
     </div>
+  );
+}
+
+export default function ListingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#030712] text-white">
+          <div className="mx-auto max-w-7xl px-6 py-10 text-sm text-[#9CA3AF]">
+            Loading listings...
+          </div>
+        </div>
+      }
+    >
+      <ListingPageContent />
+    </Suspense>
   );
 }
