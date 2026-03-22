@@ -59,9 +59,7 @@ export default function WishlistButton({
           .eq("user_id", user.id)
           .eq("listing_id", listingId);
 
-        if (error) {
-          return;
-        }
+        if (error) return;
 
         setIsWishlisted(false);
         onChanged?.(false);
@@ -71,9 +69,7 @@ export default function WishlistButton({
           listing_id: listingId,
         });
 
-        if (error) {
-          return;
-        }
+        if (error) return;
 
         setIsWishlisted(true);
         onChanged?.(true);
@@ -83,23 +79,56 @@ export default function WishlistButton({
     }
   };
 
+  const widthClass = fullWidth ? "w-full" : "";
+
+  const buttonClass = isOwnListing
+    ? "border border-white/10 bg-white/[0.04] text-white/35"
+    : isWishlisted
+    ? "border border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(16,185,129,0.08))] text-emerald-200 shadow-[0_0_25px_rgba(16,185,129,0.08)] hover:border-emerald-400/30 hover:bg-[linear-gradient(180deg,rgba(16,185,129,0.16),rgba(16,185,129,0.10))]"
+    : "border border-white/10 bg-white/[0.04] text-white/88 hover:border-fuchsia-400/20 hover:bg-white/[0.08] hover:shadow-[0_0_25px_rgba(168,85,247,0.08)]";
+
   return (
     <button
       type="button"
       onClick={handleToggleWishlist}
       disabled={loading || isOwnListing}
-      className={`${fullWidth ? "w-full" : ""} rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-        isOwnListing
-          ? "border border-white/10 bg-white/5 text-white/50"
-          : isWishlisted
-          ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-          : "border border-white/10 text-white/90 hover:bg-white/5"
-      }`}
+      className={`group relative overflow-hidden rounded-[16px] px-4 py-3 text-sm font-semibold backdrop-blur-xl transition duration-300 ${widthClass} ${buttonClass} disabled:cursor-not-allowed disabled:opacity-70`}
     >
-      {isOwnListing && "Your listing"}
-      {!isOwnListing && loading && "Saving..."}
-      {!isOwnListing && !loading && isWishlisted && "Remove from wishlist"}
-      {!isOwnListing && !loading && !isWishlisted && "Add to wishlist"}
+      {!isOwnListing && (
+        <span className="pointer-events-none absolute inset-0 opacity-100 transition duration-300 group-hover:opacity-100">
+          <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.14),transparent_42%,transparent)]" />
+        </span>
+      )}
+
+      <span className="relative z-10 flex items-center justify-center gap-2">
+        {isOwnListing && (
+          <>
+            <span className="h-2 w-2 rounded-full bg-white/25" />
+            <span>Your listing</span>
+          </>
+        )}
+
+        {!isOwnListing && loading && (
+          <>
+            <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+            <span>Saving...</span>
+          </>
+        )}
+
+        {!isOwnListing && !loading && isWishlisted && (
+          <>
+            <span className="text-base leading-none">✓</span>
+            <span>Remove from wishlist</span>
+          </>
+        )}
+
+        {!isOwnListing && !loading && !isWishlisted && (
+          <>
+            <span className="text-base leading-none">＋</span>
+            <span>Add to wishlist</span>
+          </>
+        )}
+      </span>
     </button>
   );
 }

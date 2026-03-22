@@ -1,15 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  ExternalLink,
-  MessageSquare,
-  ShieldAlert,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, MessageSquare, Send, ShieldAlert, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -19,28 +12,62 @@ type AdminProfile = {
   avatar_url: string | null;
 };
 
+type SupportThread = {
+  id: string;
+  subject: string | null;
+  status: string | null;
+  created_at?: string | null;
+};
+
+type SupportMessage = {
+  id: string;
+  thread_id: string;
+  sender_id: string | null;
+  content: string;
+  created_at: string;
+};
+
 type SupportDrawerProps = {
   open: boolean;
   onClose: () => void;
 };
 
-type DrawerView = "home" | "compose";
+type DrawerView = "home" | "conversation";
+
+function formatMessageTime(value: string) {
+  try {
+    return new Date(value).toLocaleString([], {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 export default function SupportDrawer({
   open,
   onClose,
 }: SupportDrawerProps) {
-  const router = useRouter();
   const { user } = useAuth();
 
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
 
   const [view, setView] = useState<DrawerView>("home");
+
+  const [thread, setThread] = useState<SupportThread | null>(null);
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [errorText, setErrorText] = useState("");
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +88,8 @@ export default function SupportDrawer({
   useEffect(() => {
     if (!open) {
       setView("home");
+      setThread(null);
+      setMessages([]);
       setSubject("");
       setMessage("");
       setErrorText("");
@@ -75,9 +104,9 @@ export default function SupportDrawer({
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, avatar_url")
-        .eq("role", "admin")
+        .in("role", ["admin", "owner", "moderator"])
         .order("username", { ascending: true })
-        .limit(5);
+        .limit(6);
 
       if (cancelled) return;
 
@@ -97,9 +126,158 @@ export default function SupportDrawer({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !user) return;
+
+    let mounted = true;
+
+    async function bootConversation() {
+      const loaded = await ensureConversationLoaded();
+      if (!mounted) return;
+
+      if (loaded?.thread && loaded.messages.length > 0) {
+        setView("conversation");
+      }
+    }
+
+    bootConversation();
+
+    return () => {
+      mounted = false;
+    };
+  }, [open, user]);
+
+  useEffect(() => {
+    if (!open || !thread?.id) return;
+
+    const channel = supabase
+      .channel(`support-drawer-${thread.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "support_messages",
+          filter: `thread_id=eq.${thread.id}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as SupportMessage;
+
+          setMessages((prev) => {
+            if (prev.some((msg) => msg.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, thread?.id]);
+
+  useEffect(() => {
+    if (!messages.length) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
   const previewAdmins = useMemo(() => admins.slice(0, 3), [admins]);
 
-  async function handleSupportSubmit(e: React.FormEvent) {
+  async function ensureConversationLoaded() {
+    if (!user) return null;
+
+    setLoadingConversation(true);
+    setErrorText("");
+
+    try {
+      const { data: existingThread, error: threadLookupError } = await supabase
+        .from("support_threads")
+        .select("id, subject, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (threadLookupError) {
+        throw new Error(threadLookupError.message);
+      }
+
+      if (!existingThread) {
+        setThread(null);
+        setMessages([]);
+        return { thread: null, messages: [] as SupportMessage[] };
+      }
+
+      const typedThread = existingThread as SupportThread;
+      setThread(typedThread);
+      setSubject(typedThread.subject ?? "");
+
+      const { data: messageData, error: messageError } = await supabase
+        .from("support_messages")
+        .select("id, thread_id, sender_id, content, created_at")
+        .eq("thread_id", typedThread.id)
+        .order("created_at", { ascending: true });
+
+      if (messageError) {
+        throw new Error(messageError.message);
+      }
+
+      const typedMessages = (messageData ?? []) as SupportMessage[];
+      setMessages(typedMessages);
+
+      return { thread: typedThread, messages: typedMessages };
+    } catch (error) {
+      setErrorText(
+        error instanceof Error
+          ? error.message
+          : "Could not load your support conversation."
+      );
+      return null;
+    } finally {
+      setLoadingConversation(false);
+    }
+  }
+
+  async function createThreadIfNeeded() {
+    if (!user) return null;
+    if (thread?.id) return thread.id;
+
+    const fallbackSubject = subject.trim() || "Support request";
+
+    const { data: newThread, error } = await supabase
+      .from("support_threads")
+      .insert({
+        user_id: user.id,
+        subject: fallbackSubject,
+        status: "open",
+      })
+      .select("id, subject, status, created_at")
+      .single();
+
+    if (error || !newThread) {
+      throw new Error(error?.message || "Could not create support thread.");
+    }
+
+    const typedThread = newThread as SupportThread;
+    setThread(typedThread);
+    setSubject(typedThread.subject ?? fallbackSubject);
+
+    return typedThread.id;
+  }
+
+  async function handleOpenConversation() {
+    setErrorText("");
+
+    if (!user) {
+      setErrorText("You need to be logged in to open support.");
+      return;
+    }
+
+    await ensureConversationLoaded();
+    setView("conversation");
+  }
+
+  async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
 
     setErrorText("");
@@ -109,89 +287,64 @@ export default function SupportDrawer({
       return;
     }
 
-    if (!subject.trim() || !message.trim()) {
-      setErrorText("Please add a subject and a message.");
+    if (!message.trim()) {
+      setErrorText("Please write a message before sending.");
+      return;
+    }
+
+    if (!subject.trim() && !thread) {
+      setErrorText("Please add a subject for your support request.");
       return;
     }
 
     setSending(true);
 
     try {
-      const { data: existingThread, error: existingThreadError } = await supabase
-        .from("support_threads")
-        .select("id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingThreadError) {
-        throw new Error(`Thread lookup error: ${existingThreadError.message}`);
-      }
-
-      let threadId = existingThread?.id ?? null;
+      const threadId = await createThreadIfNeeded();
 
       if (!threadId) {
-        const { data: newThread, error: threadError } = await supabase
+        throw new Error("Missing thread.");
+      }
+
+      if (subject.trim()) {
+        await supabase
           .from("support_threads")
-          .insert({
-            user_id: user.id,
+          .update({
             subject: subject.trim(),
             status: "open",
           })
-          .select("id")
-          .single();
-
-        if (threadError) {
-          throw new Error(`Thread error: ${threadError.message}`);
-        }
-
-        if (!newThread) {
-          throw new Error("Thread error: no thread returned.");
-        }
-
-        threadId = newThread.id;
+          .eq("id", threadId);
       } else {
-        const { error: updateThreadError } = await supabase
+        await supabase
           .from("support_threads")
-          .update({
-            status: "open",
-          })
-          .eq("id", threadId)
-          .eq("user_id", user.id);
-
-        if (updateThreadError) {
-          throw new Error(
-            `Thread update error: ${updateThreadError.message}`
-          );
-        }
+          .update({ status: "open" })
+          .eq("id", threadId);
       }
 
-      const { error: messageError } = await supabase
+      const content = message.trim();
+
+      const { data: insertedMessage, error: messageError } = await supabase
         .from("support_messages")
         .insert({
           thread_id: threadId,
           sender_id: user.id,
-          content: message.trim(),
-        });
+          content,
+        })
+        .select("id, thread_id, sender_id, content, created_at")
+        .single();
 
-      if (messageError) {
-        throw new Error(`Message error: ${messageError.message}`);
+      if (messageError || !insertedMessage) {
+        throw new Error(messageError?.message || "Could not send message.");
       }
 
-      setSubject("");
+      setMessages((prev) => {
+        if (prev.some((msg) => msg.id === insertedMessage.id)) return prev;
+        return [...prev, insertedMessage as SupportMessage];
+      });
+
       setMessage("");
-      setView("home");
-
-      onClose();
-
-      router.push(`/support/inbox?thread=${threadId}`, { scroll: true });
-
-      setTimeout(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      }, 50);
+      setView("conversation");
     } catch (error) {
-      console.error("Support submit error:", error);
       setErrorText(
         error instanceof Error
           ? error.message
@@ -214,16 +367,18 @@ export default function SupportDrawer({
       />
 
       <div
-        className={`fixed inset-x-0 bottom-0 z-[80] mx-auto w-full max-w-4xl transform transition-all duration-300 ${
+        className={`fixed inset-x-0 bottom-0 z-[80] mx-auto w-full max-w-5xl transform transition-all duration-300 ${
           open
             ? "translate-y-0 opacity-100"
             : "translate-y-full opacity-0"
         }`}
       >
-        <div className="relative overflow-hidden rounded-t-[32px] border border-white/10 bg-[linear-gradient(180deg,#10152f_0%,#0a1025_55%,#060a18_100%)] shadow-[0_-20px_80px_rgba(0,0,0,0.5)]">
+        <div className="relative overflow-hidden rounded-t-[34px] border border-white/10 bg-[linear-gradient(180deg,#12182d_0%,#0a1020_52%,#070b15_100%)] shadow-[0_-20px_80px_rgba(0,0,0,0.55)]">
           <div className="pointer-events-none absolute inset-0">
-            <div className="absolute left-10 top-10 h-28 w-28 rounded-full bg-violet-500/15 blur-3xl" />
-            <div className="absolute right-10 top-20 h-24 w-24 rounded-full bg-blue-500/15 blur-3xl" />
+            <div className="absolute left-12 top-10 h-32 w-32 rounded-full bg-fuchsia-500/12 blur-3xl" />
+            <div className="absolute right-12 top-20 h-28 w-28 rounded-full bg-blue-500/12 blur-3xl" />
+            <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:42px_42px]" />
+            <div className="absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
           </div>
 
           <div className="relative px-6 pb-8 pt-5 sm:px-8 sm:pb-10">
@@ -242,7 +397,7 @@ export default function SupportDrawer({
                     previewAdmins.map((admin) => (
                       <div
                         key={admin.id}
-                        className="h-14 w-14 overflow-hidden rounded-full border-2 border-white/15 bg-white/10"
+                        className="h-14 w-14 overflow-hidden rounded-full border-2 border-white/15 bg-white/10 shadow-[0_0_20px_rgba(168,85,247,0.08)]"
                       >
                         {admin.avatar_url ? (
                           <img
@@ -251,7 +406,7 @@ export default function SupportDrawer({
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500/30 to-blue-500/30 text-sm font-semibold text-white">
+                          <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(168,85,247,0.32),rgba(59,130,246,0.25),rgba(239,68,68,0.18))] text-sm font-semibold text-white">
                             {(admin.username?.[0] ?? "A").toUpperCase()}
                           </div>
                         )}
@@ -272,14 +427,14 @@ export default function SupportDrawer({
                   )}
                 </div>
 
-                <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  {view === "home" ? "Need help?" : "Send us a message"}
+                <h2 className="bg-gradient-to-r from-white via-fuchsia-100 to-blue-100 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
+                  {view === "home" ? "Support center" : "Support conversation"}
                 </h2>
 
-                <p className="mt-3 max-w-xl text-sm leading-7 text-[#A5B0C5] sm:text-base">
+                <p className="mt-3 max-w-xl text-sm leading-7 text-white/55 sm:text-base">
                   {view === "home"
-                    ? "Contact the Dxblox team, open a report, or join the community."
-                    : "Write directly to the team from here, then continue the conversation in your support inbox."}
+                    ? "Open a conversation with the Dxblox team, report an issue, or join the community."
+                    : "Stay here and chat directly with support from this drawer."}
                 </p>
               </div>
 
@@ -294,7 +449,7 @@ export default function SupportDrawer({
             </div>
 
             {errorText ? (
-              <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              <div className="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorText}
               </div>
             ) : null}
@@ -304,23 +459,20 @@ export default function SupportDrawer({
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setErrorText("");
-                      setView("compose");
-                    }}
-                    className="group rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-left transition hover:border-violet-400/30 hover:bg-white/[0.08]"
+                    onClick={handleOpenConversation}
+                    className="group rounded-[24px] border border-white/10 bg-white/[0.05] p-5 text-left transition hover:-translate-y-0.5 hover:border-fuchsia-400/25 hover:bg-white/[0.08] hover:shadow-[0_0_30px_rgba(168,85,247,0.08)]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="rounded-xl border border-violet-400/20 bg-violet-500/10 p-3 text-violet-200">
+                      <div className="rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/10 p-3 text-fuchsia-200">
                         <MessageSquare size={18} />
                       </div>
 
                       <div>
                         <h3 className="text-base font-semibold text-white">
-                          Send us a message
+                          Open support conversation
                         </h3>
-                        <p className="mt-1 text-sm text-[#9CA3AF]">
-                          Contact the team directly from this panel.
+                        <p className="mt-1 text-sm text-white/50">
+                          Start or continue your chat directly here.
                         </p>
                       </div>
                     </div>
@@ -329,7 +481,7 @@ export default function SupportDrawer({
                   <Link
                     href="/reports"
                     onClick={onClose}
-                    className="group rounded-2xl border border-white/10 bg-white/[0.05] p-5 transition hover:border-violet-400/30 hover:bg-white/[0.08]"
+                    className="group rounded-[24px] border border-white/10 bg-white/[0.05] p-5 transition hover:-translate-y-0.5 hover:border-fuchsia-400/25 hover:bg-white/[0.08] hover:shadow-[0_0_30px_rgba(168,85,247,0.08)]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-amber-200">
@@ -340,7 +492,7 @@ export default function SupportDrawer({
                         <h3 className="text-base font-semibold text-white">
                           Report a user or issue
                         </h3>
-                        <p className="mt-1 text-sm text-[#9CA3AF]">
+                        <p className="mt-1 text-sm text-white/50">
                           Open a report if something looks suspicious.
                         </p>
                       </div>
@@ -348,25 +500,14 @@ export default function SupportDrawer({
                   </Link>
                 </div>
 
-                <div className="mt-4">
-                  <Link
-                    href="/support/inbox"
-                    onClick={onClose}
-                    className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white transition hover:border-violet-400/30 hover:bg-white/[0.07]"
-                  >
-                    Open support inbox
-                  </Link>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h3 className="text-base font-semibold text-white">
                         Community Discord
                       </h3>
-                      <p className="mt-1 text-sm text-[#9CA3AF]">
-                        Mets ton lien Discord ici maintenant, puis remplace-le
-                        plus tard.
+                      <p className="mt-1 text-sm text-white/50">
+                        Add your Discord link here and replace it later.
                       </p>
                     </div>
 
@@ -374,70 +515,22 @@ export default function SupportDrawer({
                       href="https://discord.gg/your-link"
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-100 transition hover:bg-violet-500/15"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-2.5 text-sm font-medium text-fuchsia-100 transition hover:bg-fuchsia-500/15"
                     >
                       Join Discord
                       <ExternalLink size={16} />
                     </a>
                   </div>
                 </div>
-
-                <div className="mt-6">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
-                    Team
-                  </p>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {admins.slice(0, 3).map((admin) => (
-                      <Link
-                        key={admin.id}
-                        href={`/users/${admin.id}`}
-                        onClick={onClose}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-white/15 hover:bg-white/[0.06]"
-                      >
-                        <div className="mx-auto h-16 w-16 overflow-hidden rounded-full border border-white/10 bg-white/10">
-                          {admin.avatar_url ? (
-                            <img
-                              src={admin.avatar_url}
-                              alt={admin.username ?? "Admin avatar"}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500/30 to-blue-500/30 text-base font-semibold text-white">
-                              {(admin.username?.[0] ?? "A").toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 text-center">
-                          <p className="text-sm font-semibold text-white">
-                            {admin.username ?? "Admin"}
-                          </p>
-                          <p className="mt-1 text-xs text-[#9CA3AF]">
-                            Dxblox Team
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
               </>
             ) : (
-              <div className="mt-8">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorText("");
-                    setView("home");
-                  }}
-                  className="mb-5 inline-flex items-center gap-2 text-sm text-[#A5B0C5] transition hover:text-white"
-                >
-                  <ArrowLeft size={16} />
-                  Back
-                </button>
+              <div className="mt-8 grid gap-5 lg:grid-cols-[0.95fr_1.45fr]">
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-white/72">
+                    Thread details
+                  </h3>
 
-                <form onSubmit={handleSupportSubmit} className="space-y-4">
-                  <div>
+                  <div className="mt-4">
                     <label className="mb-2 block text-sm font-medium text-white/90">
                       Subject
                     </label>
@@ -445,45 +538,116 @@ export default function SupportDrawer({
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
                       placeholder="Example: Problem with a listing"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#7B8197] focus:border-violet-400/30 focus:bg-white/[0.07]"
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
                     />
                   </div>
 
-                  <div>
+                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/38">
+                      Status
+                    </div>
+                    <div className="mt-2 text-sm font-medium text-white">
+                      {thread?.status || "New conversation"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-white">
+                        Messages
+                      </h3>
+                      <p className="mt-1 text-sm text-white/45">
+                        Chat directly with the Dxblox team.
+                      </p>
+                    </div>
+
+                    {loadingConversation && (
+                      <span className="text-xs text-white/45">Loading…</span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 h-[280px] overflow-y-auto rounded-[20px] border border-white/8 bg-black/20 p-3 sm:p-4">
+                    {messages.length === 0 ? (
+                      <div className="flex h-full items-center justify-center text-center">
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            No messages yet
+                          </div>
+                          <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">
+                            Send your first message and the conversation will stay here.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {messages.map((item) => {
+                          const isMine = !!user && item.sender_id === user.id;
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`flex ${
+                                isMine ? "justify-end" : "justify-start"
+                              }`}
+                            >
+                              <div
+                                className={`max-w-[85%] rounded-[20px] px-4 py-3 text-sm leading-6 ${
+                                  isMine
+                                    ? "border border-fuchsia-400/18 bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(59,130,246,0.12),rgba(239,68,68,0.10))] text-white shadow-[0_0_20px_rgba(168,85,247,0.08)]"
+                                    : "border border-white/10 bg-white/[0.05] text-white/85"
+                                }`}
+                              >
+                                <p className="whitespace-pre-wrap">{item.content}</p>
+                                <div className="mt-2 text-[11px] text-white/35">
+                                  {formatMessageTime(item.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSendMessage} className="mt-4">
                     <label className="mb-2 block text-sm font-medium text-white/90">
-                      Message
+                      New message
                     </label>
+
                     <textarea
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       placeholder="Explain your problem here..."
-                      rows={6}
-                      className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#7B8197] focus:border-violet-400/30 focus:bg-white/[0.07]"
+                      rows={5}
+                      className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
                     />
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      type="submit"
-                      disabled={sending}
-                      className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {sending ? "Sending..." : "Send message"}
-                    </button>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <button
+                        type="submit"
+                        disabled={sending}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(168,85,247,0.18)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Send size={15} />
+                        {sending ? "Sending..." : "Send message"}
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSubject("");
-                        setMessage("");
-                        setErrorText("");
-                      }}
-                      className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </form>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMessage("");
+                          setErrorText("");
+                        }}
+                        className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             )}
           </div>

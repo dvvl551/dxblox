@@ -95,6 +95,54 @@ function Badge({ label }: { label: string }) {
   );
 }
 
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-violet-500/20 hover:bg-[linear-gradient(180deg,rgba(124,92,255,0.10),rgba(255,255,255,0.03))]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#A7AFBF]">
+        {label}
+      </div>
+      <div className="mt-3 text-4xl font-black leading-none text-white">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SectionShell({
+  title,
+  description,
+  action,
+  children,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="py-10">
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-white">
+            {title}
+          </h2>
+          {description && (
+            <p className="mt-2 text-[#9CA3AF]">{description}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function DxbloxHomepage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -208,20 +256,20 @@ export default function DxbloxHomepage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0B0B12] text-[#F5F7FF]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.12),transparent_28%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
 
       <Navbar active="home" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
-        <section className="grid items-start gap-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:py-16">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
+        <section className="grid items-start gap-8 py-8 lg:grid-cols-[1.12fr_0.88fr] lg:py-12">
           <div>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
               Independent platform • Not affiliated with Roblox
             </div>
 
-            <h1 className="max-w-3xl text-5xl font-black tracking-tight sm:text-6xl">
+            <h1 className="max-w-4xl text-5xl font-black tracking-tight text-white sm:text-6xl">
               Buy and sell Roblox listings faster on Dxblox
             </h1>
 
@@ -229,7 +277,7 @@ export default function DxbloxHomepage() {
               Trade smarter. Stay safer.
             </p>
 
-            <p className="mt-4 max-w-2xl text-base leading-7 text-[#9CA3AF]">
+            <p className="mt-4 max-w-2xl text-base leading-8 text-[#9CA3AF]">
               Discover real listings for popular Roblox games, explore active
               offers, contact sellers and keep your wishlist organized in one
               clean marketplace.
@@ -237,12 +285,12 @@ export default function DxbloxHomepage() {
 
             <form
               onSubmit={handleSearchSubmit}
-              className="mt-8 flex max-w-2xl items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-2xl shadow-black/20"
+              className="mt-8 flex max-w-2xl items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 p-3 shadow-2xl shadow-black/20"
             >
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-[#73798f]"
+                className="w-full bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-[#73798f]"
                 placeholder="Search a game, item or seller..."
               />
               <button
@@ -265,17 +313,13 @@ export default function DxbloxHomepage() {
               </span>
             </div>
 
-            <div className="mt-8 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-8 grid max-w-3xl gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
-                <div
+                <StatCard
                   key={stat.label}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4"
-                >
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[#9CA3AF]">
-                    {stat.label}
-                  </div>
-                </div>
+                  label={stat.label}
+                  value={stat.value}
+                />
               ))}
             </div>
 
@@ -295,19 +339,19 @@ export default function DxbloxHomepage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-[#131320] p-5 shadow-2xl shadow-violet-950/20">
-            <div className="rounded-[22px] bg-gradient-to-br from-violet-500/20 to-blue-500/10 p-5">
+          <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-5 shadow-2xl shadow-violet-950/20">
+            <div className="rounded-[24px] bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.08))] p-4">
               <ListingImage
                 src={featuredListing?.image_url ?? null}
                 alt={featuredListing?.item_name || "Featured listing"}
-                className="h-56 w-full rounded-2xl bg-black/20"
+                className="h-64 w-full rounded-[20px] bg-black/20"
               />
             </div>
 
             <div className="mt-5 flex items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-[#9CA3AF]">Featured listing</div>
-                <div className="mt-1 text-2xl font-bold">
+                <div className="mt-1 truncate text-2xl font-bold text-white">
                   {featuredListing?.item_name || "No listing yet"}
                 </div>
                 <div className="mt-1 text-sm text-[#9CA3AF]">
@@ -323,21 +367,21 @@ export default function DxbloxHomepage() {
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Price</div>
-                <div className="mt-1 truncate font-semibold">
+                <div className="mt-1 truncate font-semibold text-white">
                   {featuredListing?.price || "—"}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Game</div>
-                <div className="mt-1 truncate font-semibold">
+                <div className="mt-1 truncate font-semibold text-white">
                   {featuredListing?.game || "—"}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                 <div className="text-xs text-[#9CA3AF]">Status</div>
-                <div className="mt-1 truncate font-semibold">
+                <div className="mt-1 truncate font-semibold text-white">
                   {featuredListing?.status || "—"}
                 </div>
               </div>
@@ -345,39 +389,33 @@ export default function DxbloxHomepage() {
 
             <Link
               href={featuredListing ? `/listing/${featuredListing.id}` : "/listing"}
-              className="mt-5 block w-full rounded-2xl bg-white/6 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/10"
+              className="mt-5 block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/10"
             >
               View listing
             </Link>
           </div>
         </section>
 
-        <section className="py-8">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">Popular games</h2>
-              <p className="mt-2 text-[#9CA3AF]">
-                Browse listings from the most active Roblox communities on
-                Dxblox.
-              </p>
-            </div>
-
+        <SectionShell
+          title="Popular games"
+          description="Browse listings from the most active Roblox communities on Dxblox."
+          action={
             <Link
               href="/games"
               className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
             >
               View all games
             </Link>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          }
+        >
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             {games.map((game) => (
               <Link
                 key={game.name}
                 href={`/games/${game.slug}`}
-                className="group block rounded-[26px] border border-white/10 bg-[#10111a] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition hover:-translate-y-1 hover:border-violet-500/30 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+                className="group block rounded-[28px] border border-white/10 bg-[#10111a] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition hover:-translate-y-1 hover:border-violet-500/30 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
               >
-                <div className="relative aspect-[16/10] overflow-hidden rounded-[18px] border border-white/8 bg-[#0f1018]">
+                <div className="relative aspect-[16/10] overflow-hidden rounded-[20px] border border-white/8 bg-[#0f1018]">
                   <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
                   <img
                     src={game.image}
@@ -387,7 +425,7 @@ export default function DxbloxHomepage() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-lg font-bold">{game.name}</div>
+                  <div className="text-lg font-bold text-white">{game.name}</div>
                   <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#9CA3AF]">
                     {game.desc}
                   </p>
@@ -401,33 +439,26 @@ export default function DxbloxHomepage() {
               </Link>
             ))}
           </div>
-        </section>
+        </SectionShell>
 
-        <section className="py-10">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">
-                Featured listings
-              </h2>
-              <p className="mt-2 text-[#9CA3AF]">
-                Latest real offers from Dxblox users.
-              </p>
-            </div>
-
+        <SectionShell
+          title="Featured listings"
+          description="Latest real offers from Dxblox users."
+          action={
             <Link
               href="/listing"
               className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
             >
               Browse all listings
             </Link>
-          </div>
-
+          }
+        >
           {loading ? (
-            <div className="rounded-[24px] border border-white/10 bg-[#131320] p-6 text-sm text-[#9CA3AF]">
+            <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 text-sm text-[#9CA3AF]">
               Loading featured listings...
             </div>
           ) : featuredListings.length === 0 ? (
-            <div className="rounded-[24px] border border-white/10 bg-[#131320] p-6 text-sm text-[#9CA3AF]">
+            <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 text-sm text-[#9CA3AF]">
               No listings yet.
             </div>
           ) : (
@@ -435,18 +466,18 @@ export default function DxbloxHomepage() {
               {featuredListings.map((listing) => (
                 <article
                   key={listing.id}
-                  className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                  className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
                 >
                   <Link href={`/listing/${listing.id}`} className="block">
                     <ListingImage
                       src={listing.image_url}
                       alt={listing.item_name}
-                      className="h-44 w-full rounded-[18px]"
+                      className="h-44 w-full rounded-[20px]"
                     />
 
                     <div className="mt-4 flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-lg font-bold">
+                      <div className="min-w-0">
+                        <div className="truncate text-lg font-bold text-white">
                           {listing.item_name}
                         </div>
                         <div className="mt-1 text-sm text-[#9CA3AF]">
@@ -459,12 +490,14 @@ export default function DxbloxHomepage() {
 
                     <div className="mt-4 flex items-center justify-between text-sm">
                       <span className="text-[#9CA3AF]">Category</span>
-                      <span className="font-medium">{listing.category}</span>
+                      <span className="font-medium text-white">
+                        {listing.category}
+                      </span>
                     </div>
                   </Link>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="truncate text-2xl font-bold">
+                    <div className="truncate text-2xl font-bold text-white">
                       {listing.price}
                     </div>
 
@@ -494,13 +527,9 @@ export default function DxbloxHomepage() {
               ))}
             </div>
           )}
-        </section>
+        </SectionShell>
 
-        <section className="py-10">
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold tracking-tight">Why Dxblox</h2>
-          </div>
-
+        <SectionShell title="Why Dxblox">
           <div className="grid gap-5 lg:grid-cols-3">
             {[
               {
@@ -515,35 +544,27 @@ export default function DxbloxHomepage() {
                 title: "Reports & moderation",
                 text: "Safer trading flow with review tools, reports and admin moderation already built in.",
               },
-            ].map((item, index) => (
+            ].map((item) => (
               <div
                 key={item.title}
-                className="rounded-[24px] border border-white/10 bg-[#131320] p-6"
+                className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6"
               >
-                <div
-                  className={`mb-4 h-12 w-12 rounded-2xl ${
-                    index === 0
-                      ? "bg-emerald-500/15"
-                      : index === 1
-                      ? "bg-sky-500/15"
-                      : "bg-violet-500/15"
-                  }`}
-                />
-                <div className="text-xl font-bold">{item.title}</div>
+                <div className="mb-4 h-12 w-12 rounded-2xl border border-white/10 bg-white/5" />
+                <div className="text-xl font-bold text-white">{item.title}</div>
                 <p className="mt-3 leading-7 text-[#9CA3AF]">{item.text}</p>
               </div>
             ))}
           </div>
-        </section>
+        </SectionShell>
 
         <section className="py-10">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 lg:p-8">
+          <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 lg:p-8">
             <div className="mx-auto max-w-3xl text-center">
               <div className="text-sm font-medium uppercase tracking-[0.18em] text-violet-300">
                 Start on Dxblox
               </div>
 
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 Buy, sell and discover Roblox listings faster
               </h2>
 

@@ -63,11 +63,15 @@ export default function CreateListingPage() {
 
   const needsPrice = offerType === "For sale";
 
+  const clearFeedback = () => {
+    if (errorMessage) setErrorMessage("");
+    if (successMessage) setSuccessMessage("");
+  };
+
   const handleGameChange = (value: string) => {
     setGame(value);
     setCategory("");
-    if (errorMessage) setErrorMessage("");
-    if (successMessage) setSuccessMessage("");
+    clearFeedback();
   };
 
   const handleOfferTypeChange = (value: string) => {
@@ -78,21 +82,18 @@ export default function CreateListingPage() {
       setPrice("");
     }
 
-    if (errorMessage) setErrorMessage("");
-    if (successMessage) setSuccessMessage("");
+    clearFeedback();
   };
 
   const handlePriceChange = (value: string) => {
     const cleaned = value.replace(/[^\d.]/g, "");
-
     const parts = cleaned.split(".");
+
     if (parts.length > 2) return;
     if (parts[1] && parts[1].length > 2) return;
 
     setPrice(cleaned);
-
-    if (errorMessage) setErrorMessage("");
-    if (successMessage) setSuccessMessage("");
+    clearFeedback();
   };
 
   const handleImageChange = (file: File | null) => {
@@ -105,11 +106,13 @@ export default function CreateListingPage() {
     }
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setSelectedImage(null);
       setErrorMessage("Only JPG and PNG images are allowed.");
       return;
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
+      setSelectedImage(null);
       setErrorMessage("Image size must be 3 MB or less.");
       return;
     }
@@ -158,6 +161,7 @@ export default function CreateListingPage() {
     }
 
     const trimmedItemName = itemName.trim();
+
     if (!trimmedItemName) {
       setErrorMessage("Please enter an item name.");
       return;
@@ -174,6 +178,7 @@ export default function CreateListingPage() {
     }
 
     const trimmedDescription = description.trim();
+
     if (trimmedDescription.length > 500) {
       setErrorMessage("Description must be 500 characters or less.");
       return;
@@ -201,6 +206,7 @@ export default function CreateListingPage() {
       }
 
       const parsedPrice = Number(price);
+
       if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
         setErrorMessage("Price must be a valid number greater than 0.");
         return;
@@ -221,8 +227,8 @@ export default function CreateListingPage() {
       offerType === "For sale"
         ? `$${Number(price).toFixed(2)}`
         : offerType === "Trade"
-        ? "Trade"
-        : "Looking for";
+          ? "Trade"
+          : "Looking for";
 
     try {
       setLoading(true);
@@ -258,27 +264,21 @@ export default function CreateListingPage() {
         uploadedImageUrl = publicUrlData.publicUrl;
       }
 
-      const { data, error } = await supabase
-        .from("listing_submissions")
-        .insert({
-          listing_id: null,
-          user_id: user.id,
-          submission_type: "create",
-          review_status: "pending",
-          game,
-          category,
-          item_name: trimmedItemName,
-          price: finalPrice,
-          offer_type: offerType,
-          status,
-          description: trimmedDescription || null,
-          image_url: uploadedImageUrl,
-          proof_url: null,
-        })
-        .select();
-
-      console.log("submission insert data:", data);
-      console.log("submission insert error:", error);
+      const { error } = await supabase.from("listing_submissions").insert({
+        listing_id: null,
+        user_id: user.id,
+        submission_type: "create",
+        review_status: "pending",
+        game,
+        category,
+        item_name: trimmedItemName,
+        price: finalPrice,
+        offer_type: offerType,
+        status,
+        description: trimmedDescription || null,
+        image_url: uploadedImageUrl,
+        proof_url: null,
+      });
 
       if (error) {
         setErrorMessage(
@@ -300,13 +300,16 @@ export default function CreateListingPage() {
     }
   };
 
+  const canPreviewImage = selectedImage && ALLOWED_IMAGE_TYPES.includes(selectedImage.type);
+
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(91,33,182,0.08),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent_20%,transparent_80%,rgba(255,255,255,0.02))]" />
 
       <Navbar />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
           <Link href="/" className="transition hover:text-white">
             Home
@@ -319,18 +322,21 @@ export default function CreateListingPage() {
           <span className="text-white">Create listing</span>
         </div>
 
-        <section className="grid gap-8 xl:grid-cols-[1fr_340px]">
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] sm:p-8">
-            <div className="mb-6">
+        <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-8">
+            <div className="mb-7">
               <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
                 New listing
               </div>
-              <h1 className="text-4xl font-black tracking-tight">
+
+              <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
                 Create a listing
               </h1>
+
               <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9CA3AF]">
                 Add your item details and send your listing for admin review
-                before publication.
+                before publication. Keep everything clear, accurate and easy to
+                verify.
               </p>
             </div>
 
@@ -343,7 +349,7 @@ export default function CreateListingPage() {
                   <select
                     value={game}
                     onChange={(e) => handleGameChange(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1F2E] px-4 py-3 text-sm text-white outline-none transition focus:border-violet-500/40 focus:bg-white/5"
                   >
                     <option value="" className="bg-[#131320] text-white">
                       Choose a game
@@ -368,11 +374,10 @@ export default function CreateListingPage() {
                     value={category}
                     onChange={(e) => {
                       setCategory(e.target.value);
-                      if (errorMessage) setErrorMessage("");
-                      if (successMessage) setSuccessMessage("");
+                      clearFeedback();
                     }}
                     disabled={!game}
-                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1F2E] px-4 py-3 text-sm text-white outline-none transition focus:border-violet-500/40 focus:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="" className="bg-[#131320] text-white">
                       {game ? "Select a category" : "Choose a game first"}
@@ -402,10 +407,9 @@ export default function CreateListingPage() {
                     value={itemName}
                     onChange={(e) => {
                       setItemName(e.target.value);
-                      if (errorMessage) setErrorMessage("");
-                      if (successMessage) setSuccessMessage("");
+                      clearFeedback();
                     }}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#73798f] focus:border-violet-500/40 focus:bg-white/[0.07]"
                   />
                 </div>
 
@@ -416,7 +420,7 @@ export default function CreateListingPage() {
                   <select
                     value={offerType}
                     onChange={(e) => handleOfferTypeChange(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1F2E] px-4 py-3 text-sm text-white outline-none transition focus:border-violet-500/40 focus:bg-white/5"
                   >
                     {OFFER_TYPES.map((type) => (
                       <option
@@ -438,7 +442,7 @@ export default function CreateListingPage() {
                   </label>
 
                   {needsPrice ? (
-                    <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-4">
+                    <div className="flex items-center rounded-2xl border border-white/10 bg-white/5 px-4 transition focus-within:border-violet-500/40 focus-within:bg-white/[0.07]">
                       <span className="mr-3 text-sm text-white/70">$</span>
                       <input
                         type="text"
@@ -446,7 +450,7 @@ export default function CreateListingPage() {
                         placeholder="0.00"
                         value={price}
                         onChange={(e) => handlePriceChange(e.target.value)}
-                        className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-[#73798f]"
+                        className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-[#73798f]"
                       />
                     </div>
                   ) : (
@@ -464,10 +468,9 @@ export default function CreateListingPage() {
                     value={status}
                     onChange={(e) => {
                       setStatus(e.target.value as (typeof STATUSES)[number]);
-                      if (errorMessage) setErrorMessage("");
-                      if (successMessage) setSuccessMessage("");
+                      clearFeedback();
                     }}
-                    className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-[#1A1F2E] px-4 py-3 text-sm text-white outline-none transition focus:border-violet-500/40 focus:bg-white/5"
                   >
                     {STATUSES.map((statusValue) => (
                       <option
@@ -483,9 +486,15 @@ export default function CreateListingPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm text-[#9CA3AF]">
-                  Description
-                </label>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm text-[#9CA3AF]">
+                    Description
+                  </label>
+                  <span className="text-xs text-[#73798f]">
+                    {description.length}/500
+                  </span>
+                </div>
+
                 <textarea
                   placeholder="Describe your listing..."
                   rows={6}
@@ -493,21 +502,18 @@ export default function CreateListingPage() {
                   value={description}
                   onChange={(e) => {
                     setDescription(e.target.value);
-                    if (errorMessage) setErrorMessage("");
-                    if (successMessage) setSuccessMessage("");
+                    clearFeedback();
                   }}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#73798f] focus:border-violet-500/40 focus:bg-white/[0.07]"
                 />
-                <div className="mt-2 text-right text-xs text-[#73798f]">
-                  {description.length}/500
-                </div>
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-[#9CA3AF]">
                   Upload image
                 </label>
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 px-4 py-6">
+
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-4 sm:p-5">
                   <input
                     type="file"
                     accept=".jpg,.jpeg,.png,image/jpeg,image/png"
@@ -516,25 +522,38 @@ export default function CreateListingPage() {
                     }
                     className="block w-full text-sm text-[#9CA3AF] file:mr-4 file:rounded-xl file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-violet-500"
                   />
+
                   <p className="mt-3 text-sm text-[#9CA3AF]">
                     Allowed: JPG, JPEG, PNG. Max size: 3 MB.
                   </p>
+
                   {selectedImage && (
-                    <p className="mt-2 text-sm text-emerald-300">
-                      Selected: {selectedImage.name}
-                    </p>
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-3">
+                      <p className="text-sm text-emerald-300">
+                        Selected: {selectedImage.name}
+                      </p>
+
+                      {canPreviewImage && (
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0E1320]">
+                          <img
+                            src={URL.createObjectURL(selectedImage)}
+                            alt="Listing preview"
+                            className="h-48 w-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 text-sm text-[#9CA3AF]">
+              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-[#C8D0E5]">
                 <input
                   type="checkbox"
                   checked={confirmed}
                   onChange={(e) => {
                     setConfirmed(e.target.checked);
-                    if (errorMessage) setErrorMessage("");
-                    if (successMessage) setSuccessMessage("");
+                    clearFeedback();
                   }}
                   className="mt-1 rounded border-white/10 bg-white/5"
                 />
@@ -559,7 +578,7 @@ export default function CreateListingPage() {
               <div className="flex flex-wrap gap-3">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || authLoading}
                   className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Sending..." : "Send for review"}
@@ -567,17 +586,19 @@ export default function CreateListingPage() {
 
                 <button
                   type="button"
-                  className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                  disabled
+                  className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/55 transition disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Save draft
+                  Save draft soon
                 </button>
               </div>
             </form>
           </div>
 
           <aside className="space-y-5">
-            <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-              <h2 className="text-xl font-bold">Review flow</h2>
+            <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <h2 className="text-xl font-bold text-white">Review flow</h2>
+
               <ul className="mt-4 space-y-3 text-sm leading-6 text-[#9CA3AF]">
                 <li className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
                   Your listing is submitted first
@@ -596,15 +617,32 @@ export default function CreateListingPage() {
 
             <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xl font-bold">Image safety</h3>
+                <h3 className="text-xl font-bold text-white">Image safety</h3>
                 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85">
                   JPG / PNG only
                 </span>
               </div>
+
               <p className="mt-3 text-sm leading-6 text-white/85">
                 Uploaded images are limited to JPG and PNG formats and still go
                 through review before publication.
               </p>
+            </div>
+
+            <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <h3 className="text-xl font-bold text-white">Publishing tips</h3>
+
+              <div className="mt-4 space-y-3 text-sm leading-6 text-[#9CA3AF]">
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+                  Use a clear item name buyers can instantly recognize.
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+                  Keep the description short, clean and focused on what matters.
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+                  Add a clean image when possible to improve review clarity.
+                </div>
+              </div>
             </div>
           </aside>
         </section>

@@ -57,7 +57,7 @@ function ListingImage({
 }) {
   if (!src) {
     return (
-      <div className="flex h-48 w-full items-center justify-center rounded-[20px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+      <div className="flex h-48 w-full items-center justify-center rounded-[22px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
         No image
       </div>
     );
@@ -67,8 +67,44 @@ function ListingImage({
     <img
       src={src}
       alt={alt}
-      className="h-48 w-full rounded-[20px] border border-white/8 object-cover"
+      className="h-48 w-full rounded-[22px] border border-white/8 object-cover"
     />
+  );
+}
+
+function SellerStatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-violet-500/20 hover:bg-[linear-gradient(180deg,rgba(124,92,255,0.10),rgba(255,255,255,0.03))]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#A7AFBF]">
+        {label}
+      </div>
+      <div className="mt-3 text-4xl font-black leading-none text-white">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SideInfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#A7AFBF]">
+        {label}
+      </div>
+      <div className="mt-3 text-base font-semibold text-white">{value}</div>
+    </div>
   );
 }
 
@@ -274,13 +310,13 @@ export default function PublicUserProfilePage({
   const sellerInitial = profile?.username?.[0]?.toUpperCase() || "U";
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
 
       <Navbar active="listing" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
           <Link href="/" className="transition hover:text-white">
             Home
@@ -290,16 +326,16 @@ export default function PublicUserProfilePage({
         </div>
 
         {loading ? (
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
+          <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-8 text-[#9CA3AF]">
             Loading seller profile...
           </div>
         ) : errorMessage || !profile ? (
-          <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
+          <div className="rounded-[32px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
             {errorMessage || "Seller profile not found."}
           </div>
         ) : (
           <>
-            <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#131320] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+            <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
               <div className="relative border-b border-white/8 bg-[linear-gradient(135deg,rgba(124,92,255,0.18),rgba(61,169,252,0.10),rgba(255,255,255,0.02))] px-6 py-8 sm:px-8 sm:py-10">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_28%)]" />
 
@@ -354,13 +390,13 @@ export default function PublicUserProfilePage({
                     {isOwnProfile ? (
                       <Link
                         href="/profile"
-                        className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white transition hover:scale-[1.02]"
+                        className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
                       >
                         Edit my profile
                       </Link>
                     ) : (
                       <Link
-                        href="/listing"
+                        href="/listings"
                         className="rounded-2xl border border-white/10 px-5 py-3 font-semibold text-white/90 transition hover:bg-white/5"
                       >
                         Browse marketplace
@@ -371,51 +407,22 @@ export default function PublicUserProfilePage({
               </div>
 
               <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-5 lg:px-8">
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Total
-                  </div>
-                  <div className="mt-2 text-3xl font-black">{listings.length}</div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Available
-                  </div>
-                  <div className="mt-2 text-3xl font-black">{availableCount}</div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Pending
-                  </div>
-                  <div className="mt-2 text-3xl font-black">{pendingCount}</div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Sold
-                  </div>
-                  <div className="mt-2 text-3xl font-black">{soldCount}</div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Games
-                  </div>
-                  <div className="mt-2 text-3xl font-black">{gamesCount}</div>
-                </div>
+                <SellerStatCard label="Total" value={listings.length} />
+                <SellerStatCard label="Available" value={availableCount} />
+                <SellerStatCard label="Pending" value={pendingCount} />
+                <SellerStatCard label="Sold" value={soldCount} />
+                <SellerStatCard label="Games" value={gamesCount} />
               </div>
             </section>
 
-            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px]">
+              <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold tracking-tight">
+                    <h2 className="text-2xl font-bold tracking-tight text-white">
                       Seller listings
                     </h2>
-                    <p className="mt-2 text-[#9CA3AF]">
+                    <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
                       Public listings from this seller.
                     </p>
                   </div>
@@ -436,7 +443,7 @@ export default function PublicUserProfilePage({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search item, game, category..."
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#73798f] focus:border-violet-400/30 focus:bg-white/[0.07]"
                   />
 
                   <select
@@ -539,7 +546,7 @@ export default function PublicUserProfilePage({
 
                             <div className="mt-4 flex items-start justify-between gap-4">
                               <div className="min-w-0">
-                                <div className="truncate text-lg font-bold">
+                                <div className="truncate text-lg font-bold text-white">
                                   {listing.item_name}
                                 </div>
                                 <div className="mt-1 text-sm text-[#9CA3AF]">
@@ -558,14 +565,16 @@ export default function PublicUserProfilePage({
 
                             <div className="mt-4 flex items-center justify-between text-sm">
                               <span className="text-[#9CA3AF]">Offer type</span>
-                              <span className="font-medium">
+                              <span className="font-medium text-white">
                                 {listing.offer_type}
                               </span>
                             </div>
                           </Link>
 
                           <div className="mt-4 flex items-center justify-between gap-3">
-                            <div className="text-2xl font-bold">{listing.price}</div>
+                            <div className="text-2xl font-bold text-white">
+                              {listing.price}
+                            </div>
 
                             <Link
                               href={`/listing/${listing.id}`}
@@ -599,43 +608,26 @@ export default function PublicUserProfilePage({
               </div>
 
               <aside className="space-y-5">
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
-                  <h3 className="text-xl font-bold">Seller info</h3>
+                <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+                  <h3 className="text-xl font-bold text-white">Seller info</h3>
 
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Username</div>
-                      <div className="mt-1 font-semibold text-white">
-                        {profile.username || "Unknown seller"}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Member since</div>
-                      <div className="mt-1 font-semibold text-white">
-                        {memberSince}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Main game</div>
-                      <div className="mt-1 font-semibold text-white">
-                        {mainGame}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Profile type</div>
-                      <div className="mt-1 font-semibold text-white">
-                        {profile.role === "admin" ? "Admin seller" : "Seller"}
-                      </div>
-                    </div>
+                  <div className="mt-4 space-y-3">
+                    <SideInfoCard
+                      label="Username"
+                      value={profile.username || "Unknown seller"}
+                    />
+                    <SideInfoCard label="Member since" value={memberSince} />
+                    <SideInfoCard label="Main game" value={mainGame} />
+                    <SideInfoCard
+                      label="Profile type"
+                      value={profile.role === "admin" ? "Admin seller" : "Seller"}
+                    />
                   </div>
                 </div>
 
-                <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+                <section className="rounded-[32px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xl font-bold">Seller profile</h3>
+                    <h3 className="text-xl font-bold text-white">Seller profile</h3>
                     <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white/85">
                       Public
                     </span>
@@ -645,7 +637,7 @@ export default function PublicUserProfilePage({
                     Browse this seller’s public listings and view what is
                     currently available in their marketplace profile.
                   </p>
-                </div>
+                </section>
               </aside>
             </section>
           </>

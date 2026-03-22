@@ -60,6 +60,11 @@ type Submission = {
   created_at: string;
 };
 
+type DeleteModalTarget = {
+  id: string;
+  item_name: string;
+};
+
 function ListingImage({
   src,
   alt,
@@ -87,6 +92,50 @@ function ListingImage({
       alt={alt}
       className={`border border-white/8 object-cover ${className || ""}`}
     />
+  );
+}
+
+function InfoStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#A7AFBF]">
+        {label}
+      </div>
+      <div className="mt-3 text-xl font-bold text-white">{value}</div>
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+          {description && (
+            <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">{description}</p>
+          )}
+        </div>
+        {actions}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -120,6 +169,9 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
   const [pageError, setPageError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+
+  const [deleteModalTarget, setDeleteModalTarget] =
+    useState<DeleteModalTarget | null>(null);
 
   useEffect(() => {
     if (!listingId) return;
@@ -278,12 +330,6 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
     if (!user || !listing) return;
     if (deleting) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this listing?"
-    );
-
-    if (!confirmed) return;
-
     setDeleting(true);
     setActionError("");
     setActionMessage("");
@@ -301,6 +347,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
       }
 
       setActionMessage("Listing deleted successfully.");
+      setDeleteModalTarget(null);
 
       setTimeout(() => {
         router.push("/dashboard");
@@ -555,18 +602,18 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
   const lastEditApproved = latestEditSubmission?.review_status === "approved";
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
 
       <Navbar active="listing" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
         {loading ? (
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
+          <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-8 text-[#9CA3AF]">
             Loading listing...
           </div>
         ) : pageError || !listing ? (
-          <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
+          <div className="rounded-[32px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
             {pageError || "Listing not found."}
           </div>
         ) : (
@@ -576,7 +623,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                 Home
               </Link>
               <span>/</span>
-              <Link href="/listing" className="transition hover:text-white">
+              <Link href="/listings" className="transition hover:text-white">
                 Listings
               </Link>
               <span>/</span>
@@ -597,7 +644,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
             {isOwner && latestEditSubmission && (
               <div
-                className={`mb-6 rounded-[24px] border p-4 ${
+                className={`mb-6 rounded-[28px] border p-4 ${
                   hasPendingEdit
                     ? "border-orange-500/20 bg-orange-500/10"
                     : lastEditRejected
@@ -669,32 +716,23 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
               </div>
             )}
 
-            <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+            <section className="grid gap-8 xl:grid-cols-[1.08fr_0.92fr]">
+              <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
                 <ListingImage
                   src={listing.image_url}
                   alt={listing.item_name}
-                  className="h-[420px] w-full rounded-[24px]"
+                  className="h-[460px] w-full rounded-[24px]"
                 />
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                    <div className="text-xs text-[#9CA3AF]">Game</div>
-                    <div className="mt-1 font-semibold">{listing.game}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                    <div className="text-xs text-[#9CA3AF]">Category</div>
-                    <div className="mt-1 font-semibold">{listing.category}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                    <div className="text-xs text-[#9CA3AF]">Published</div>
-                    <div className="mt-1 font-semibold">{formattedDate}</div>
-                  </div>
+                  <InfoStat label="Game" value={listing.game} />
+                  <InfoStat label="Category" value={listing.category} />
+                  <InfoStat label="Published" value={formattedDate} />
                 </div>
               </div>
 
               <div className="space-y-5">
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+                <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
                   <div className="mb-3 flex flex-wrap gap-2">
                     <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-300">
                       {listing.offer_type}
@@ -727,7 +765,7 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h1 className="text-4xl font-black tracking-tight">
+                      <h1 className="text-4xl font-black tracking-tight text-white">
                         {listing.item_name}
                       </h1>
                       <p className="mt-2 text-[#9CA3AF]">
@@ -790,18 +828,8 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                   )}
 
                   <div className="mt-6 grid grid-cols-2 gap-4">
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Status</div>
-                      <div className="mt-1 text-xl font-bold">
-                        {listing.status}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                      <div className="text-xs text-[#9CA3AF]">Offer type</div>
-                      <div className="mt-1 text-xl font-bold">
-                        {listing.offer_type}
-                      </div>
-                    </div>
+                    <InfoStat label="Status" value={listing.status} />
+                    <InfoStat label="Offer type" value={listing.offer_type} />
                   </div>
 
                   <div className="mt-6 flex flex-wrap gap-3">
@@ -844,7 +872,12 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
 
                         <button
                           type="button"
-                          onClick={handleDeleteListing}
+                          onClick={() =>
+                            setDeleteModalTarget({
+                              id: listing.id,
+                              item_name: listing.item_name,
+                            })
+                          }
                           disabled={deleting || updatingStatus}
                           className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-3 font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -951,9 +984,9 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                   )}
                 </div>
 
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+                <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-2xl font-bold">Seller</h2>
+                    <h2 className="text-2xl font-bold text-white">Seller</h2>
                     {isAdminSeller && (
                       <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-300">
                         Admin
@@ -969,13 +1002,13 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                         className="h-14 w-14 rounded-2xl border border-white/10 object-cover"
                       />
                     ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-lg font-black">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-lg font-black text-white">
                         {sellerName?.[0]?.toUpperCase() || "S"}
                       </div>
                     )}
 
                     <div className="min-w-0">
-                      <div className="truncate text-lg font-bold">
+                      <div className="truncate text-lg font-bold text-white">
                         {sellerName}
                       </div>
                       <div className="mt-1 text-sm text-[#9CA3AF]">
@@ -994,55 +1027,50 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
               </div>
             </section>
 
-            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_320px]">
+            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px]">
               <div className="space-y-8">
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                  <h2 className="text-2xl font-bold">Description</h2>
-                  <div className="mt-4 rounded-[22px] border border-white/8 bg-white/5 p-5">
+                <SectionCard title="Description">
+                  <div className="rounded-[22px] border border-white/8 bg-white/5 p-5">
                     <p className="leading-7 text-[#C8D0E0]">
                       {listing.description?.trim()
                         ? listing.description
                         : "No description was added for this listing yet."}
                     </p>
                   </div>
-                </div>
+                </SectionCard>
 
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                  <h2 className="text-2xl font-bold">Proof</h2>
-
+                <SectionCard
+                  title="Proof"
+                  description="Proof can help buyers review the listing more carefully."
+                >
                   {listing.proof_url ? (
-                    <div className="mt-4 overflow-hidden rounded-[22px] border border-white/8 bg-white/5">
+                    <div className="overflow-hidden rounded-[22px] border border-white/8 bg-white/5">
                       <img
                         src={listing.proof_url}
                         alt={`${listing.item_name} proof`}
-                        className="h-64 w-full object-cover"
+                        className="h-72 w-full object-cover"
                       />
                     </div>
                   ) : (
-                    <div className="mt-4 flex h-56 items-center justify-center rounded-[22px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+                    <div className="flex h-60 items-center justify-center rounded-[22px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
                       No proof uploaded yet
                     </div>
                   )}
-
-                  <p className="mt-4 text-sm leading-6 text-[#9CA3AF]">
-                    Proof support can be expanded later with a safer upload and
-                    moderation flow.
-                  </p>
-                </div>
+                </SectionCard>
 
                 {moreFromSeller.length > 0 && (
-                  <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                    <div className="flex items-center justify-between gap-3">
-                      <h2 className="text-2xl font-bold">More from this seller</h2>
+                  <SectionCard
+                    title="More from this seller"
+                    actions={
                       <Link
                         href={`/users/${listing.user_id}`}
-                        className="text-sm text-violet-300 transition hover:text-violet-200"
+                        className="text-sm font-medium text-violet-300 transition hover:text-violet-200"
                       >
                         View all
                       </Link>
-                    </div>
-
-                    <div className="mt-5 grid gap-4 md:grid-cols-3">
+                    }
+                  >
+                    <div className="grid gap-4 md:grid-cols-3">
                       {moreFromSeller.map((item) => (
                         <Link
                           key={item.id}
@@ -1056,78 +1084,87 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                           />
 
                           <div className="mt-3">
-                            <div className="truncate font-semibold">
+                            <div className="truncate font-semibold text-white">
                               {item.item_name}
                             </div>
                             <div className="mt-1 text-sm text-[#9CA3AF]">
                               {item.game} • {item.category}
                             </div>
-                            <div className="mt-3 text-lg font-bold">
+                            <div className="mt-3 text-lg font-bold text-white">
                               {item.price}
                             </div>
                           </div>
                         </Link>
                       ))}
                     </div>
-                  </div>
+                  </SectionCard>
                 )}
               </div>
 
               <aside className="space-y-5">
-                <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                  <h3 className="text-xl font-bold">Listing details</h3>
-                  <div className="mt-4 space-y-3 text-sm">
+                <SectionCard title="Listing details">
+                  <div className="space-y-3 text-sm">
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Game</span>
-                      <span className="text-right">{listing.game}</span>
+                      <span className="text-right text-white">{listing.game}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Category</span>
-                      <span className="text-right">{listing.category}</span>
+                      <span className="text-right text-white">
+                        {listing.category}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Offer type</span>
-                      <span className="text-right">{listing.offer_type}</span>
+                      <span className="text-right text-white">
+                        {listing.offer_type}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Status</span>
-                      <span className="text-right">{listing.status}</span>
+                      <span className="text-right text-white">
+                        {listing.status}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Published</span>
-                      <span className="text-right">{formattedDate}</span>
+                      <span className="text-right text-white">
+                        {formattedDate}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Reports</span>
-                      <span className="text-right font-semibold">
+                      <span className="text-right font-semibold text-white">
                         {reportCount}
                       </span>
                     </div>
                     {topReportReason && (
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-[#9CA3AF]">Top reason</span>
-                        <span className="text-right">{topReportReason}</span>
+                        <span className="text-right text-white">
+                          {topReportReason}
+                        </span>
                       </div>
                     )}
                     {isOwner && latestEditSubmission && (
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-[#9CA3AF]">Last edit review</span>
-                        <span className="text-right capitalize">
+                        <span className="text-right capitalize text-white">
                           {latestEditSubmission.review_status}
                         </span>
                       </div>
                     )}
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-[#9CA3AF]">Listing ID</span>
-                      <span className="max-w-[140px] truncate text-right">
+                      <span className="max-w-[150px] truncate text-right text-white">
                         {listing.id}
                       </span>
                     </div>
                   </div>
-                </div>
+                </SectionCard>
 
-                <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
-                  <h3 className="text-xl font-bold">Trade more safely</h3>
+                <section className="rounded-[32px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+                  <h3 className="text-xl font-bold text-white">Trade more safely</h3>
                   <ul className="mt-4 space-y-3 text-sm leading-6 text-white/85">
                     <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
                       Check the seller profile first
@@ -1142,12 +1179,57 @@ export default function ListingDetailPage({ params }: ListingPageProps) {
                       Report listings that look unsafe
                     </li>
                   </ul>
-                </div>
+                </section>
               </aside>
             </section>
           </>
         )}
       </main>
+
+      {deleteModalTarget && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#0b1020] p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300/80">
+              Danger zone
+            </p>
+
+            <h3 className="mt-3 text-2xl font-bold text-white">
+              Delete listing?
+            </h3>
+
+            <p className="mt-3 text-sm leading-6 text-[#9CA3AF]">
+              This action will permanently remove this listing from Dxblox.
+            </p>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">
+                {deleteModalTarget.item_name}
+              </p>
+              <p className="mt-1 text-xs text-[#9CA3AF]">
+                This cannot be undone.
+              </p>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setDeleteModalTarget(null)}
+                disabled={deleting}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-medium text-zinc-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleDeleteListing}
+                disabled={deleting}
+                className="flex-1 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 font-semibold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

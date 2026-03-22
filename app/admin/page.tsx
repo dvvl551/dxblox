@@ -43,6 +43,7 @@ export default function AdminPage() {
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const [pendingReviews, setPendingReviews] = useState(0);
   const [pendingReports, setPendingReports] = useState(0);
@@ -139,6 +140,11 @@ export default function AdminPage() {
       );
 
       setLoading(false);
+      setShowWelcome(true);
+
+      setTimeout(() => {
+        setShowWelcome(false);
+      }, 2200);
     };
 
     fetchAdminStats();
@@ -195,10 +201,11 @@ export default function AdminPage() {
 
   if (!loading && (!user || !isAdmin)) {
     return (
-      <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+      <div className="relative min-h-screen overflow-hidden bg-[#05030A] text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(239,68,68,0.12),transparent_28%)]" />
         <Navbar />
-        <main className="mx-auto max-w-4xl px-6 py-16">
-          <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-300">
+        <main className="relative mx-auto max-w-4xl px-6 py-16">
+          <div className="rounded-[30px] border border-rose-500/20 bg-rose-500/10 p-8 text-rose-200 backdrop-blur-xl">
             {errorMessage || "Access denied."}
           </div>
         </main>
@@ -206,14 +213,51 @@ export default function AdminPage() {
     );
   }
 
+  if (!loading && showWelcome && user && isAdmin) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-[#05030A] text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(239,68,68,0.14),transparent_28%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div className="absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
+
+        <Navbar active="admin" />
+
+        <main className="relative mx-auto flex min-h-[calc(100vh-80px)] max-w-7xl items-center justify-center px-6 py-10">
+          <div className="w-full rounded-[32px] border border-white/10 bg-white/5 p-10 text-center backdrop-blur-2xl shadow-[0_0_80px_rgba(168,85,247,0.12)]">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-[11px] uppercase tracking-[0.35em] text-white/60">
+              <span className="h-2 w-2 rounded-full bg-rose-400 animate-pulse" />
+              Private control node
+            </div>
+
+            <h1 className="bg-gradient-to-r from-white via-fuchsia-200 to-red-300 bg-clip-text text-6xl font-black tracking-[0.18em] text-transparent md:text-8xl">
+              WELCOME
+            </h1>
+
+            <p className="mt-5 text-sm tracking-[0.18em] text-white/55 md:text-base">
+              ADMIN ACCESS GRANTED
+            </p>
+
+            <div className="mx-auto mt-8 h-px w-40 bg-gradient-to-r from-transparent via-fuchsia-400/70 to-transparent" />
+
+            <p className="mt-8 text-xs uppercase tracking-[0.35em] text-white/35">
+              Initializing secure workspace...
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+    <div className="relative min-h-screen overflow-hidden bg-[#05030A] text-[#F5F7FF]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.16),transparent_30%),radial-gradient(circle_at_right,rgba(59,130,246,0.12),transparent_24%),radial-gradient(circle_at_bottom,rgba(239,68,68,0.12),transparent_26%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:42px_42px]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
 
       <Navbar active="admin" />
 
       <main className="relative mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-white/45">
           <Link href="/" className="transition hover:text-white">
             Home
           </Link>
@@ -225,42 +269,56 @@ export default function AdminPage() {
           <span className="text-white">Admin</span>
         </div>
 
-        <section className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+        <section className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-2xl shadow-[0_0_100px_rgba(168,85,247,0.08)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
-                Admin hub
+              <div className="mb-4 inline-flex rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-sm text-fuchsia-200">
+                Private admin hub
               </div>
-              <h1 className="text-4xl font-black tracking-tight">
+
+              <h1 className="text-4xl font-black tracking-tight md:text-5xl">
                 Control center
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9CA3AF]">
+
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
                 Quick moderation access for reviews, reports, users, marketplace
                 conversations and support requests.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Reported listings</div>
-                <div className="mt-1 text-2xl font-bold">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-xl">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                  Reported listings
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
                   {reportedListingsCount}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Active listings</div>
-                <div className="mt-1 text-2xl font-bold">{activeListings}</div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-xl">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                  Active listings
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
+                  {activeListings}
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Admin users</div>
-                <div className="mt-1 text-2xl font-bold">{adminUsers}</div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-xl">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                  Admin users
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
+                  {adminUsers}
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Support inbox</div>
-                <div className="mt-1 text-2xl font-bold">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-xl">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/40">
+                  Support inbox
+                </div>
+                <div className="mt-2 text-2xl font-bold text-white">
                   {openSupportRequests}
                 </div>
               </div>
@@ -269,13 +327,13 @@ export default function AdminPage() {
         </section>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <div className="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
             {errorMessage}
           </div>
         )}
 
         {loading ? (
-          <div className="mt-8 rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
+          <div className="mt-8 rounded-[30px] border border-white/10 bg-white/5 p-8 text-white/55 backdrop-blur-2xl">
             Loading admin dashboard...
           </div>
         ) : (
@@ -285,22 +343,22 @@ export default function AdminPage() {
                 <Link
                   key={card.href}
                   href={card.href}
-                  className="rounded-[24px] border border-white/10 bg-[#131320] p-5 transition hover:-translate-y-1 hover:border-violet-500/30"
+                  className="rounded-[24px] border border-white/10 bg-white/5 p-5 backdrop-blur-2xl transition hover:-translate-y-1 hover:border-fuchsia-400/30 hover:bg-white/[0.07]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm text-[#9CA3AF]">{card.title}</div>
+                      <div className="text-sm text-white/45">{card.title}</div>
                       <div className="mt-2 text-4xl font-black text-white">
                         {card.value}
                       </div>
                     </div>
 
-                    <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300">
+                    <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-200">
                       {card.badge}
                     </span>
                   </div>
 
-                  <p className="mt-4 text-sm leading-7 text-[#9CA3AF]">
+                  <p className="mt-4 text-sm leading-7 text-white/55">
                     {card.description}
                   </p>
 
@@ -312,13 +370,13 @@ export default function AdminPage() {
             </section>
 
             <section className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 backdrop-blur-2xl shadow-[0_0_100px_rgba(168,85,247,0.08)]">
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-2xl font-bold">Priority actions</h2>
 
                   <Link
                     href="/admin/support"
-                    className="inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-violet-500/30 hover:bg-white/10"
+                    className="inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-fuchsia-400/30 hover:bg-white/10"
                   >
                     Open support inbox
                   </Link>
@@ -327,65 +385,65 @@ export default function AdminPage() {
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <Link
                     href="/admin/reviews"
-                    className="rounded-[22px] border border-white/10 bg-white/5 p-5 transition hover:border-violet-500/30"
+                    className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-fuchsia-400/30 hover:bg-white/[0.04]"
                   >
-                    <div className="text-sm text-[#9CA3AF]">Reviews</div>
+                    <div className="text-sm text-white/45">Reviews</div>
                     <div className="mt-2 text-xl font-bold text-white">
                       {pendingReviews > 0
                         ? `${pendingReviews} pending submissions`
                         : "No pending submissions"}
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
+                    <p className="mt-2 text-sm leading-7 text-white/55">
                       Approve or reject listing creations and edits.
                     </p>
                   </Link>
 
                   <Link
                     href="/admin/reports"
-                    className="rounded-[22px] border border-white/10 bg-white/5 p-5 transition hover:border-violet-500/30"
+                    className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-fuchsia-400/30 hover:bg-white/[0.04]"
                   >
-                    <div className="text-sm text-[#9CA3AF]">Reports</div>
+                    <div className="text-sm text-white/45">Reports</div>
                     <div className="mt-2 text-xl font-bold text-white">
                       {pendingReports > 0
                         ? `${pendingReports} pending reports`
                         : "No pending reports"}
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
+                    <p className="mt-2 text-sm leading-7 text-white/55">
                       Check suspicious listings and clean fake reports.
                     </p>
                   </Link>
 
                   <Link
                     href="/admin/messages"
-                    className="rounded-[22px] border border-white/10 bg-white/5 p-5 transition hover:border-violet-500/30"
+                    className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-fuchsia-400/30 hover:bg-white/[0.04]"
                   >
-                    <div className="text-sm text-[#9CA3AF]">Messages</div>
+                    <div className="text-sm text-white/45">Messages</div>
                     <div className="mt-2 text-xl font-bold text-white">
                       {totalMessages} conversations
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
+                    <p className="mt-2 text-sm leading-7 text-white/55">
                       Open buyer and seller chats in read-only mode.
                     </p>
                   </Link>
 
                   <Link
                     href="/admin/users"
-                    className="rounded-[22px] border border-white/10 bg-white/5 p-5 transition hover:border-violet-500/30"
+                    className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-fuchsia-400/30 hover:bg-white/[0.04]"
                   >
-                    <div className="text-sm text-[#9CA3AF]">Users</div>
+                    <div className="text-sm text-white/45">Users</div>
                     <div className="mt-2 text-xl font-bold text-white">
                       {totalUsers} total users
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
+                    <p className="mt-2 text-sm leading-7 text-white/55">
                       Browse profiles, roles and admin accounts.
                     </p>
                   </Link>
 
                   <Link
                     href="/admin/support"
-                    className="rounded-[22px] border border-violet-500/20 bg-violet-500/10 p-5 transition hover:border-violet-400/40 hover:bg-violet-500/15 md:col-span-2"
+                    className="rounded-[22px] border border-fuchsia-400/20 bg-fuchsia-500/10 p-5 transition hover:border-fuchsia-400/40 hover:bg-fuchsia-500/15 md:col-span-2"
                   >
-                    <div className="text-sm text-violet-200">Support</div>
+                    <div className="text-sm text-fuchsia-200">Support</div>
                     <div className="mt-2 text-xl font-bold text-white">
                       {openSupportRequests > 0
                         ? `${openSupportRequests} open support request${
@@ -393,7 +451,7 @@ export default function AdminPage() {
                           }`
                         : "No open support requests"}
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-[#C9D2E7]">
+                    <p className="mt-2 text-sm leading-7 text-[#D7D9E8]">
                       Review footer contact messages, open the conversation,
                       check the sender profile, and delete threads if needed.
                     </p>
@@ -401,7 +459,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-[30px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+              <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.16),rgba(59,130,246,0.10),rgba(239,68,68,0.10))] p-6 shadow-[0_0_90px_rgba(168,85,247,0.16)] backdrop-blur-2xl">
                 <h2 className="text-2xl font-bold">Marketplace health</h2>
 
                 <div className="mt-5 space-y-3">

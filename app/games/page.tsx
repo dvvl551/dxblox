@@ -15,8 +15,6 @@ type GameCard = {
   slug: string;
   image: string;
   desc: string;
-  accent: string;
-  border: string;
   listings: string;
 };
 
@@ -26,50 +24,57 @@ const GAME_CONFIG = [
     slug: "adopt-me",
     image: "/games/adopt-me.jpg",
     desc: "Pets, rare items and popular offers.",
-    accent: "text-pink-300",
-    border: "hover:border-pink-500/30",
   },
   {
     name: "MM2",
     slug: "mm2",
     image: "/games/mm2.jpg",
     desc: "Knives, guns and high-demand trades.",
-    accent: "text-violet-300",
-    border: "hover:border-violet-500/30",
   },
   {
     name: "Blox Fruits",
     slug: "blox-fruits",
     image: "/games/blox-fruits.jpg",
     desc: "Items, offers and active player listings.",
-    accent: "text-cyan-300",
-    border: "hover:border-cyan-500/30",
   },
   {
     name: "Steal a Brainrot",
     slug: "steal-a-brainrot",
     image: "/games/steal-a-brainrot.jpg",
     desc: "Trending deals and fast-moving listings.",
-    accent: "text-orange-300",
-    border: "hover:border-orange-500/30",
   },
   {
     name: "Blade Ball",
     slug: "blade-ball",
     image: "/games/blade-ball.jpg",
     desc: "Competitive items and wanted listings.",
-    accent: "text-sky-300",
-    border: "hover:border-sky-500/30",
   },
   {
     name: "Da Hood",
     slug: "da-hood",
     image: "/games/da-hood.jpg",
     desc: "Weapons, skins and active street-market listings.",
-    accent: "text-emerald-300",
-    border: "hover:border-emerald-500/30",
   },
 ] as const;
+
+function MarketplaceStatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-violet-500/20 hover:bg-[linear-gradient(180deg,rgba(124,92,255,0.10),rgba(255,255,255,0.03))]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#A7AFBF]">
+        {label}
+      </div>
+      <div className="mt-3 text-4xl font-black leading-none text-white">
+        {value}
+      </div>
+    </div>
+  );
+}
 
 export default function GamesPage() {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -81,9 +86,7 @@ export default function GamesPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
-        .from("listings")
-        .select("id, game");
+      const { data, error } = await supabase.from("listings").select("id, game");
 
       if (error) {
         setErrorMessage("Could not load game stats.");
@@ -92,7 +95,7 @@ export default function GamesPage() {
         return;
       }
 
-      setListings(data ?? []);
+      setListings((data ?? []) as Listing[]);
       setLoading(false);
     };
 
@@ -114,13 +117,29 @@ export default function GamesPage() {
 
   const totalListings = useMemo(() => listings.length, [listings]);
 
+  const activeGames = useMemo(
+    () => new Set(listings.map((listing) => listing.game)).size,
+    [listings]
+  );
+
+  const mostActiveGame = useMemo(() => {
+    if (listings.length === 0) return "No activity yet";
+
+    const counts: Record<string, number> = {};
+    for (const listing of listings) {
+      counts[listing.game] = (counts[listing.game] ?? 0) + 1;
+    }
+
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  }, [listings]);
+
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
 
       <Navbar active="games" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
           <Link href="/" className="transition hover:text-white">
             Home
@@ -129,40 +148,75 @@ export default function GamesPage() {
           <span className="text-white">Games</span>
         </div>
 
-        <section className="rounded-[30px] border border-white/10 bg-[#131320] p-8 lg:p-10">
-          <div className="max-w-3xl">
-            <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
-              Dxblox games
-            </div>
-            <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
-              Explore Roblox games
-            </h1>
-            <p className="mt-4 text-base leading-7 text-[#9CA3AF]">
-              Browse supported games on Dxblox and open their listing pages to
-              view real offers, categories and wanted items.
-            </p>
+        <section className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] lg:p-8">
+          <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
+            <div>
+              <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
+                Dxblox games
+              </div>
 
-            <div className="mt-6 inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/90">
-              Total marketplace listings:{" "}
-              <span className="ml-2 font-bold">{totalListings}</span>
+              <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+                Explore Roblox games
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[#9CA3AF]">
+                Browse supported games on Dxblox and open their listing pages to
+                view real offers, categories and wanted items.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3 text-sm">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                  Supported games
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                  Real marketplace listings
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80">
+                  Fast discovery
+                </span>
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-4">
+                <Link
+                  href="/listing"
+                  className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                >
+                  Browse listings
+                </Link>
+
+                <Link
+                  href="/create-listing"
+                  className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                >
+                  Post a listing
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <MarketplaceStatCard label="Marketplace listings" value={totalListings} />
+              <MarketplaceStatCard label="Active games" value={activeGames} />
+              <MarketplaceStatCard label="Most active" value={mostActiveGame} />
             </div>
           </div>
         </section>
 
-        <section className="mt-10">
-          <div className="mb-5">
-            <h2 className="text-2xl font-bold tracking-tight">All games</h2>
+        <section className="py-10">
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold tracking-tight text-white">
+              All games
+            </h2>
             <p className="mt-2 text-[#9CA3AF]">
               Open a game to browse its active listings and categories.
             </p>
           </div>
 
           {loading ? (
-            <div className="rounded-[24px] border border-white/10 bg-[#131320] p-6 text-sm text-[#9CA3AF]">
+            <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 text-sm text-[#9CA3AF]">
               Loading games...
             </div>
           ) : errorMessage ? (
-            <div className="rounded-[24px] border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-300">
+            <div className="rounded-[28px] border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-300">
               {errorMessage}
             </div>
           ) : (
@@ -171,9 +225,9 @@ export default function GamesPage() {
                 <Link
                   key={game.name}
                   href={`/games/${game.slug}`}
-                  className={`group block rounded-[26px] border border-white/10 bg-[#10111a] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)] ${game.border}`}
+                  className="group block rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition hover:-translate-y-1 hover:border-violet-500/30 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
                 >
-                  <div className="relative aspect-[16/10] overflow-hidden rounded-[18px] border border-white/8 bg-[#0f1018]">
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-[20px] border border-white/8 bg-[#0f1018]">
                     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
                     <img
                       src={game.image}
@@ -183,13 +237,18 @@ export default function GamesPage() {
                   </div>
 
                   <div className="mt-5">
-                    <div className="text-2xl font-bold">{game.name}</div>
+                    <div className="text-2xl font-bold text-white">
+                      {game.name}
+                    </div>
+
                     <p className="mt-3 min-h-[52px] text-sm leading-6 text-[#9CA3AF]">
                       {game.desc}
                     </p>
-                    <div className={`mt-4 text-sm ${game.accent}`}>
+
+                    <div className="mt-4 text-sm text-violet-300">
                       {game.listings}
                     </div>
+
                     <div className="mt-5 w-full rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-center text-sm font-semibold text-white/90 transition group-hover:bg-white/5">
                       Open game page
                     </div>

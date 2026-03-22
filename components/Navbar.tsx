@@ -32,40 +32,40 @@ export default function Navbar({ active }: NavbarProps) {
     user?.email ||
     "Account";
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin =
+    profile?.role === "admin" ||
+    profile?.role === "owner" ||
+    profile?.role === "moderator";
+
   const avatarUrl = profile?.avatar_url || null;
   const initial = displayName[0]?.toUpperCase() || "A";
 
-  const desktopLinkClass = (name: NavbarProps["active"]) =>
-    active === name
-      ? "rounded-xl bg-white/10 px-4 py-2 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition"
-      : "rounded-xl px-4 py-2 text-[#9CA3AF] transition hover:bg-white/5 hover:text-white";
+const desktopLinkClass = (name: NavbarProps["active"]) =>
+  active === name
+    ? "relative rounded-2xl border border-fuchsia-400/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))] px-4 py-2 text-white shadow-[0_0_25px_rgba(168,85,247,0.18)] backdrop-blur-xl transition before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_45%,transparent)]"
+    : "relative rounded-2xl px-4 py-2 text-white/55 transition duration-200 hover:bg-white/7 hover:text-white";
 
-  const mobileLinkClass = (name: NavbarProps["active"]) =>
-    active === name
-      ? "rounded-xl bg-white/10 px-3 py-2 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition"
-      : "rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-[#9CA3AF] transition hover:bg-white/10 hover:text-white";
+const mobileLinkClass = (name: NavbarProps["active"]) =>
+  active === name
+    ? "relative rounded-2xl border border-fuchsia-400/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))] px-3 py-2 text-white shadow-[0_0_25px_rgba(168,85,247,0.18)] backdrop-blur-xl transition before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_45%,transparent)]"
+    : "rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-white/60 transition hover:border-white/15 hover:bg-white/[0.08] hover:text-white";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0B0B12]/80 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-6">
+    <header className="sticky top-0 z-50">
+      <div className="absolute inset-0 border-b border-white/10 bg-[#070812]/72 backdrop-blur-2xl" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.18),transparent_35%),radial-gradient(circle_at_right,rgba(59,130,246,0.10),transparent_28%),radial-gradient(circle_at_left,rgba(239,68,68,0.08),transparent_24%)]" />
+      <div className="absolute inset-0 opacity-[0.05] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
+
+      <div className="relative mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-violet-500 to-blue-500 font-black text-white shadow-lg shadow-violet-900/30 ring-1 ring-white/10">
-              DX
-            </div>
+<Link href="/" className="group flex items-center gap-3 shrink-0">
+  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.95),rgba(59,130,246,0.92),rgba(239,68,68,0.88))] text-sm font-black text-white shadow-[0_0_30px_rgba(168,85,247,0.28)] transition duration-300 group-hover:scale-[1.03] group-hover:shadow-[0_0_40px_rgba(168,85,247,0.35)]">
+    <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.28),transparent_45%,transparent)]" />
+    <span className="relative z-10 tracking-[0.15em]">DX</span>
+  </div>
+</Link>
 
-            <div className="min-w-0">
-              <div className="truncate text-lg font-black tracking-tight text-white">
-                Dxblox
-              </div>
-              <div className="truncate text-xs text-[#9CA3AF]">
-                Roblox marketplace
-              </div>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm md:flex">
+          <nav className="hidden items-center gap-1 rounded-[24px] border border-white/10 bg-white/[0.045] p-1.5 shadow-[0_0_35px_rgba(168,85,247,0.06)] backdrop-blur-2xl md:flex">
             <Link href="/" className={desktopLinkClass("home")}>
               Home
             </Link>
@@ -100,16 +100,17 @@ export default function Navbar({ active }: NavbarProps) {
               <>
                 <Link
                   href="/login"
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
+                  className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-medium text-white/90 backdrop-blur-xl transition duration-200 hover:border-fuchsia-400/20 hover:bg-white/[0.08] hover:text-white"
                 >
                   Sign in
                 </Link>
 
                 <Link
                   href="/create-listing"
-                  className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                  className="relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.9),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_35px_rgba(168,85,247,0.24)] transition duration-300 hover:scale-[1.02] hover:shadow-[0_0_45px_rgba(168,85,247,0.3)]"
                 >
-                  Post listing
+                  <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+                  <span className="relative z-10">Post listing</span>
                 </Link>
               </>
             )}
@@ -118,18 +119,19 @@ export default function Navbar({ active }: NavbarProps) {
               <>
                 <Link
                   href="/profile"
-                  className="group flex max-w-[250px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
+                  className="group flex max-w-[280px] items-center gap-3 rounded-[24px] border border-white/10 bg-white/[0.05] px-3 py-2 shadow-[0_0_30px_rgba(59,130,246,0.05)] backdrop-blur-2xl transition duration-200 hover:border-fuchsia-400/20 hover:bg-white/[0.08]"
                 >
                   <div className="shrink-0">
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={displayName}
-                        className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                        className="h-11 w-11 rounded-[16px] border border-white/10 object-cover shadow-[0_0_20px_rgba(168,85,247,0.12)]"
                       />
                     ) : (
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white ring-1 ring-white/10">
-                        {initial}
+                      <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.28),rgba(59,130,246,0.22),rgba(239,68,68,0.18))] text-sm font-bold text-white shadow-[0_0_20px_rgba(168,85,247,0.12)]">
+                        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_45%,transparent)]" />
+                        <span className="relative z-10">{initial}</span>
                       </div>
                     )}
                   </div>
@@ -138,13 +140,14 @@ export default function Navbar({ active }: NavbarProps) {
                     <div className="truncate text-sm font-semibold text-white">
                       {displayName}
                     </div>
+
                     <div className="mt-0.5 flex items-center gap-2">
-                      <span className="truncate text-xs text-[#9CA3AF]">
+                      <span className="truncate text-xs text-white/42">
                         Open profile
                       </span>
 
                       {isAdmin && (
-                        <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
+                        <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.15em] text-fuchsia-200">
                           Admin
                         </span>
                       )}
@@ -154,14 +157,15 @@ export default function Navbar({ active }: NavbarProps) {
 
                 <Link
                   href="/create-listing"
-                  className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                  className="relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.9),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_35px_rgba(168,85,247,0.24)] transition duration-300 hover:scale-[1.02] hover:shadow-[0_0_45px_rgba(168,85,247,0.3)]"
                 >
-                  Post listing
+                  <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+                  <span className="relative z-10">Post listing</span>
                 </Link>
 
                 <button
                   onClick={handleLogout}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
+                  className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-medium text-white/90 backdrop-blur-xl transition duration-200 hover:border-rose-400/20 hover:bg-white/[0.08] hover:text-white"
                 >
                   Logout
                 </button>
@@ -176,11 +180,12 @@ export default function Navbar({ active }: NavbarProps) {
                   <img
                     src={avatarUrl}
                     alt={displayName}
-                    className="h-10 w-10 rounded-2xl border border-white/10 object-cover"
+                    className="h-10 w-10 rounded-[16px] border border-white/10 object-cover shadow-[0_0_20px_rgba(168,85,247,0.12)]"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white ring-1 ring-white/10">
-                    {initial}
+                  <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.28),rgba(59,130,246,0.22),rgba(239,68,68,0.18))] text-sm font-bold text-white">
+                    <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_45%,transparent)]" />
+                    <span className="relative z-10">{initial}</span>
                   </div>
                 )}
               </Link>
@@ -189,7 +194,7 @@ export default function Navbar({ active }: NavbarProps) {
             {!loading && !user && (
               <Link
                 href="/login"
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/[0.08]"
               >
                 Sign in
               </Link>
@@ -198,7 +203,7 @@ export default function Navbar({ active }: NavbarProps) {
             {!loading && user && (
               <button
                 onClick={handleLogout}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/10"
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-medium text-white/90 transition hover:border-white/20 hover:bg-white/[0.08]"
               >
                 Logout
               </button>
@@ -237,9 +242,10 @@ export default function Navbar({ active }: NavbarProps) {
 
           <Link
             href="/create-listing"
-            className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition"
+            className="relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.9),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-3 py-2 text-sm font-semibold text-white shadow-[0_0_30px_rgba(168,85,247,0.22)]"
           >
-            Post
+            <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+            <span className="relative z-10">Post</span>
           </Link>
         </div>
       </div>

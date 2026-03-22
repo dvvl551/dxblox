@@ -69,18 +69,40 @@ function ListingImage({
 }) {
   if (!src) {
     return (
-      <div className="flex h-44 w-full items-center justify-center rounded-[18px] border border-white/8 bg-white/5 text-sm text-[#9CA3AF]">
+      <div className="flex h-52 w-full items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.04] text-sm text-white/40">
         No image
       </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className="h-44 w-full rounded-[18px] border border-white/8 object-cover"
-    />
+    <div className="overflow-hidden rounded-[22px] border border-white/10 bg-black/20">
+      <img
+        src={src}
+        alt={alt}
+        className="h-52 w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+      />
+    </div>
+  );
+}
+
+function MarketplaceStatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-4 py-4 shadow-[0_0_30px_rgba(168,85,247,0.04)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-400/20 hover:shadow-[0_0_40px_rgba(168,85,247,0.10)]">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.10),transparent_35%,transparent_70%,rgba(168,85,247,0.05))]" />
+      <div className="relative text-[11px] font-semibold uppercase tracking-[0.26em] text-white/40">
+        {label}
+      </div>
+      <div className="relative mt-3 text-4xl font-black leading-none text-white transition group-hover:text-fuchsia-100">
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -112,6 +134,12 @@ function ListingPageContent() {
     useState<(typeof SORT_OPTIONS)[number]>("Newest");
 
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
+
+  const filterInputClass =
+    "w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.08] focus:shadow-[0_0_0_4px_rgba(168,85,247,0.08)]";
+
+  const filterSelectClass =
+    "w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none transition focus:border-fuchsia-400/30 focus:bg-[#1E2030]";
 
   useEffect(() => {
     const urlSearch = searchParams.get("search")?.trim() || "";
@@ -423,13 +451,15 @@ function ListingPageContent() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#05030A] text-[#F5F7FF]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.16),transparent_30%),radial-gradient(circle_at_right,rgba(59,130,246,0.12),transparent_24%),radial-gradient(circle_at_bottom,rgba(239,68,68,0.12),transparent_26%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:42px_42px]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
 
       <Navbar active="listing" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
+      <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-white/45">
           <Link href="/" className="transition hover:text-white">
             Home
           </Link>
@@ -437,71 +467,57 @@ function ListingPageContent() {
           <span className="text-white">Listings</span>
         </div>
 
-        <section className="rounded-[30px] border border-white/10 bg-[#131320] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.16),transparent_30%),radial-gradient(circle_at_right,rgba(59,130,246,0.10),transparent_24%),radial-gradient(circle_at_bottom,rgba(239,68,68,0.08),transparent_24%)]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:42px_42px]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
+
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
+              <div className="mb-4 inline-flex rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-sm text-fuchsia-200 shadow-[0_0_20px_rgba(168,85,247,0.10)]">
                 Marketplace
               </div>
-              <h1 className="text-4xl font-black tracking-tight">
+
+              <h1 className="bg-gradient-to-r from-white via-fuchsia-100 to-blue-100 bg-clip-text text-4xl font-black tracking-tight text-transparent md:text-5xl">
                 Browse listings
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#9CA3AF]">
+
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55">
                 Discover real listings from Dxblox users across supported games.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Total</div>
-                <div className="mt-1 text-2xl font-bold">{listings.length}</div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Available</div>
-                <div className="mt-1 text-2xl font-bold">{availableCount}</div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Pending</div>
-                <div className="mt-1 text-2xl font-bold">{pendingCount}</div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-                <div className="text-xs text-[#9CA3AF]">Sold</div>
-                <div className="mt-1 text-2xl font-bold">{soldCount}</div>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MarketplaceStatCard label="Total" value={listings.length} />
+              <MarketplaceStatCard label="Available" value={availableCount} />
+              <MarketplaceStatCard label="Pending" value={pendingCount} />
+              <MarketplaceStatCard label="Sold" value={soldCount} />
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="relative mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <div className="xl:col-span-3">
-              <label className="mb-2 block text-sm text-[#9CA3AF]">
-                Search
-              </label>
+              <label className="mb-2 block text-sm text-white/45">Search</label>
               <input
                 type="text"
                 placeholder="Search item, game, category, offer type or seller..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none placeholder:text-[#73798f]"
+                className={filterInputClass}
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-[#9CA3AF]">
-                Game
-              </label>
+              <label className="mb-2 block text-sm text-white/45">Game</label>
               <select
                 value={selectedGame}
                 onChange={(e) =>
                   setSelectedGame(e.target.value as (typeof GAME_OPTIONS)[number])
                 }
-                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                className={filterSelectClass}
               >
                 {GAME_OPTIONS.map((game) => (
-                  <option
-                    key={game}
-                    value={game}
-                    className="bg-[#131320] text-white"
-                  >
+                  <option key={game} value={game} className="bg-[#131320] text-white">
                     {game}
                   </option>
                 ))}
@@ -509,9 +525,7 @@ function ListingPageContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-[#9CA3AF]">
-                Status
-              </label>
+              <label className="mb-2 block text-sm text-white/45">Status</label>
               <select
                 value={selectedStatus}
                 onChange={(e) =>
@@ -519,14 +533,10 @@ function ListingPageContent() {
                     e.target.value as (typeof STATUS_OPTIONS)[number]
                   )
                 }
-                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                className={filterSelectClass}
               >
                 {STATUS_OPTIONS.map((status) => (
-                  <option
-                    key={status}
-                    value={status}
-                    className="bg-[#131320] text-white"
-                  >
+                  <option key={status} value={status} className="bg-[#131320] text-white">
                     {status}
                   </option>
                 ))}
@@ -534,13 +544,11 @@ function ListingPageContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-[#9CA3AF]">
-                Category
-              </label>
+              <label className="mb-2 block text-sm text-white/45">Category</label>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                className={filterSelectClass}
               >
                 {categoryOptions.map((category) => (
                   <option
@@ -555,7 +563,7 @@ function ListingPageContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-[#9CA3AF]">
+              <label className="mb-2 block text-sm text-white/45">
                 Offer type
               </label>
               <select
@@ -565,7 +573,7 @@ function ListingPageContent() {
                     e.target.value as (typeof OFFER_TYPE_OPTIONS)[number]
                   )
                 }
-                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                className={filterSelectClass}
               >
                 {OFFER_TYPE_OPTIONS.map((offerType) => (
                   <option
@@ -580,13 +588,13 @@ function ListingPageContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-[#9CA3AF]">Sort</label>
+              <label className="mb-2 block text-sm text-white/45">Sort</label>
               <select
                 value={selectedSort}
                 onChange={(e) =>
                   setSelectedSort(e.target.value as (typeof SORT_OPTIONS)[number])
                 }
-                className="w-full rounded-2xl border border-white/10 bg-[#1A1B27] px-4 py-3 text-sm text-white outline-none"
+                className={filterSelectClass}
               >
                 {SORT_OPTIONS.map((sortOption) => (
                   <option
@@ -604,15 +612,15 @@ function ListingPageContent() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:border-fuchsia-400/20 hover:bg-white/[0.08]"
               >
                 Clear filters
               </button>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5">
-            <div className="text-sm text-[#9CA3AF]">
+          <div className="relative mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5">
+            <div className="text-sm text-white/45">
               <span className="font-semibold text-white">
                 {filteredListings.length}
               </span>{" "}
@@ -620,7 +628,7 @@ function ListingPageContent() {
             </div>
 
             {hasActiveFilters && (
-              <div className="text-xs text-violet-300">
+              <div className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-xs text-fuchsia-200">
                 Filters are currently applied
               </div>
             )}
@@ -635,24 +643,25 @@ function ListingPageContent() {
           )}
 
           {loading ? (
-            <div className="rounded-[30px] border border-white/10 bg-[#131320] px-6 py-8 text-sm text-[#9CA3AF]">
+            <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] px-6 py-8 text-sm text-white/50">
               Loading listings...
             </div>
           ) : filteredListings.length === 0 ? (
-            <div className="rounded-[30px] border border-white/10 bg-[#131320] px-6 py-10 text-center">
+            <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] px-6 py-10 text-center">
               <div className="mx-auto max-w-md">
                 <div className="text-xl font-bold text-white">
                   No listings found
                 </div>
-                <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
+                <p className="mt-3 text-sm leading-7 text-white/55">
                   Try changing your search or filters to find more items.
                 </p>
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                  className="mt-5 relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_35px_rgba(168,85,247,0.22)] transition duration-300 hover:scale-[1.02] hover:shadow-[0_0_45px_rgba(168,85,247,0.28)]"
                 >
-                  Reset filters
+                  <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+                  <span className="relative z-10">Reset filters</span>
                 </button>
               </div>
             </div>
@@ -662,12 +671,15 @@ function ListingPageContent() {
                 const seller = sellerMap[listing.user_id];
                 const sellerName = seller?.username || "Unknown seller";
                 const sellerAvatar = seller?.avatar_url || null;
-                const isAdminSeller = seller?.role === "admin";
+                const isAdminSeller =
+                  seller?.role === "admin" ||
+                  seller?.role === "owner" ||
+                  seller?.role === "moderator";
 
                 return (
                   <article
                     key={listing.id}
-                    className="rounded-[24px] border border-white/10 bg-[#131320] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+                    className="group rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-4 shadow-[0_0_0_rgba(168,85,247,0)] transition duration-300 hover:-translate-y-1.5 hover:border-fuchsia-400/25 hover:shadow-[0_0_40px_rgba(168,85,247,0.10)]"
                   >
                     <Link href={`/listing/${listing.id}`} className="block">
                       <ListingImage
@@ -677,16 +689,16 @@ function ListingPageContent() {
 
                       <div className="mt-4 flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="truncate text-lg font-bold">
+                          <div className="truncate text-lg font-bold text-white transition group-hover:text-fuchsia-100">
                             {listing.item_name}
                           </div>
-                          <div className="mt-1 text-sm text-[#9CA3AF]">
+                          <div className="mt-1 text-sm text-white/45">
                             {listing.game} • {listing.category}
                           </div>
                         </div>
 
                         <span
-                          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyle(
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium shadow-[0_0_20px_rgba(255,255,255,0.02)] ${statusStyle(
                             listing.status
                           )}`}
                         >
@@ -695,12 +707,14 @@ function ListingPageContent() {
                       </div>
 
                       <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-[#9CA3AF]">Offer type</span>
-                        <span className="font-medium">{listing.offer_type}</span>
+                        <span className="text-white/40">Offer type</span>
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-medium text-white">
+                          {listing.offer_type}
+                        </span>
                       </div>
                     </Link>
 
-                    <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-3">
+                    <div className="mt-4 rounded-[22px] border border-white/8 bg-white/[0.04] p-3 backdrop-blur-xl transition group-hover:border-fuchsia-400/15">
                       <div className="flex items-center justify-between gap-3">
                         <Link
                           href={`/users/${listing.user_id}`}
@@ -710,11 +724,14 @@ function ListingPageContent() {
                             <img
                               src={sellerAvatar}
                               alt={sellerName}
-                              className="h-11 w-11 rounded-2xl border border-white/10 object-cover"
+                              className="h-11 w-11 rounded-2xl border border-white/10 object-cover shadow-[0_0_18px_rgba(168,85,247,0.08)]"
                             />
                           ) : (
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
-                              {sellerName[0]?.toUpperCase() || "S"}
+                            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.28),rgba(59,130,246,0.22),rgba(239,68,68,0.18))] text-sm font-bold text-white shadow-[0_0_18px_rgba(168,85,247,0.08)]">
+                              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_45%,transparent)]" />
+                              <span className="relative z-10">
+                                {sellerName[0]?.toUpperCase() || "S"}
+                              </span>
                             </div>
                           )}
 
@@ -723,11 +740,9 @@ function ListingPageContent() {
                               {sellerName}
                             </div>
                             <div className="mt-0.5 flex items-center gap-2">
-                              <span className="text-xs text-[#9CA3AF]">
-                                Seller
-                              </span>
+                              <span className="text-xs text-white/40">Seller</span>
                               {isAdminSeller && (
-                                <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
+                                <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200">
                                   Admin
                                 </span>
                               )}
@@ -737,7 +752,7 @@ function ListingPageContent() {
 
                         <Link
                           href={`/users/${listing.user_id}`}
-                          className="shrink-0 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/5"
+                          className="shrink-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/90 transition hover:border-fuchsia-400/20 hover:bg-white/[0.08]"
                         >
                           View
                         </Link>
@@ -745,13 +760,16 @@ function ListingPageContent() {
                     </div>
 
                     <div className="mt-4 flex items-center justify-between gap-3">
-                      <div className="text-2xl font-bold">{listing.price}</div>
+                      <div className="truncate text-2xl font-black text-white">
+                        {listing.price}
+                      </div>
 
                       <Link
                         href={`/listing/${listing.id}`}
-                        className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                        className="relative overflow-hidden rounded-xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-4 py-2 text-sm font-semibold text-white shadow-[0_0_28px_rgba(168,85,247,0.18)] transition duration-300 hover:scale-[1.03] hover:shadow-[0_0_38px_rgba(168,85,247,0.26)]"
                       >
-                        View listing
+                        <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+                        <span className="relative z-10">View listing</span>
                       </Link>
                     </div>
 
@@ -784,8 +802,8 @@ export default function ListingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#030712] text-white">
-          <div className="mx-auto max-w-7xl px-6 py-10 text-sm text-[#9CA3AF]">
+        <div className="min-h-screen bg-[#05030A] text-white">
+          <div className="mx-auto max-w-7xl px-6 py-10 text-sm text-white/50">
             Loading listings...
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, use, useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,18 +55,88 @@ function ListingImage({
 }) {
   if (!src) {
     return (
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/8 bg-white/5 text-xs text-[#9CA3AF]">
+      <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.04] text-xs text-white/40">
         No image
       </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className="h-16 w-16 rounded-2xl border border-white/8 object-cover"
-    />
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
+      <img
+        src={src}
+        alt={alt}
+        className="h-24 w-24 object-cover transition duration-500 hover:scale-[1.04]"
+      />
+    </div>
+  );
+}
+
+function UserAvatar({
+  profile,
+  fallback,
+}: {
+  profile: ProfileRow | null;
+  fallback: string;
+}) {
+  if (profile?.avatar_url) {
+    return (
+      <img
+        src={profile.avatar_url}
+        alt={profile.username || fallback}
+        className="h-11 w-11 rounded-2xl border border-white/10 object-cover shadow-[0_0_18px_rgba(168,85,247,0.08)]"
+      />
+    );
+  }
+
+  const initial = (profile?.username || fallback || "U")[0]?.toUpperCase() || "U";
+
+  return (
+    <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(168,85,247,0.28),rgba(59,130,246,0.22),rgba(239,68,68,0.18))] text-sm font-bold text-white shadow-[0_0_18px_rgba(168,85,247,0.08)]">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_45%,transparent)]" />
+      <span className="relative z-10">{initial}</span>
+    </div>
+  );
+}
+
+function StatusBadge({ value }: { value: string }) {
+  const normalized = value.toLowerCase();
+
+  const style =
+    normalized === "active"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+      : normalized === "sold"
+      ? "border-sky-500/20 bg-sky-500/10 text-sky-300"
+      : normalized === "reserved"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
+      : "border-white/10 bg-white/[0.05] text-white/80";
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${style}`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-4 py-4 shadow-[0_0_30px_rgba(168,85,247,0.04)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-400/20 hover:shadow-[0_0_40px_rgba(168,85,247,0.10)]">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.10),transparent_35%,transparent_70%,rgba(168,85,247,0.05))]" />
+      <div className="relative text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
+        {label}
+      </div>
+<div className="relative mt-3 truncate whitespace-nowrap text-lg font-black leading-tight text-white transition group-hover:text-fuchsia-100 sm:text-xl">
+  {value}
+</div>
+    </div>
   );
 }
 
@@ -87,7 +157,43 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(false);
+  const hasInitialScrollRef = useRef(false);
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior,
+    });
+  };
+
+  const isNearBottom = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom < 120;
+  };
+
+  const areMessagesEqual = (a: MessageRow[], b: MessageRow[]) => {
+    if (a.length !== b.length) return false;
+
+    for (let i = 0; i < a.length; i++) {
+      if (
+        a[i].id !== b[i].id ||
+        a[i].content !== b[i].content ||
+        a[i].sender_id !== b[i].sender_id ||
+        a[i].created_at !== b[i].created_at
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   useEffect(() => {
     if (!conversationId || authLoading) return;
@@ -103,12 +209,11 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
       setErrorMessage("");
       setActionMessage("");
 
-      const { data: conversationData, error: conversationError } =
-        await supabase
-          .from("conversations")
-          .select("id, listing_id, buyer_id, seller_id, created_at")
-          .eq("id", conversationId)
-          .maybeSingle();
+      const { data: conversationData, error: conversationError } = await supabase
+        .from("conversations")
+        .select("id, listing_id, buyer_id, seller_id, created_at")
+        .eq("id", conversationId)
+        .maybeSingle();
 
       if (conversationError || !conversationData) {
         setConversation(null);
@@ -148,7 +253,9 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
       ] = await Promise.all([
         supabase
           .from("listings")
-          .select("id, user_id, item_name, game, category, price, image_url, status")
+          .select(
+            "id, user_id, item_name, game, category, price, image_url, status"
+          )
           .eq("id", typedConversation.listing_id)
           .maybeSingle(),
         supabase
@@ -196,10 +303,16 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
           map.set(message.id, message);
         });
 
-        return Array.from(map.values()).sort(
+        const next = Array.from(map.values()).sort(
           (a, b) =>
             new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
+
+        if (areMessagesEqual(prev, next)) {
+          return prev;
+        }
+
+        return next;
       });
     };
 
@@ -215,12 +328,15 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
         },
         (payload) => {
           const newMessage = payload.new as MessageRow;
+
+          if (newMessage.sender_id === user.id || isNearBottom()) {
+            shouldAutoScrollRef.current = true;
+          }
+
           mergeMessages([newMessage]);
         }
       )
-      .subscribe((status) => {
-        console.log("Realtime status:", status);
-      });
+      .subscribe();
 
     const pollInterval = window.setInterval(async () => {
       const { data, error } = await supabase
@@ -241,12 +357,23 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
   }, [conversationId, conversation, user]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!messages.length) return;
+
+    if (!hasInitialScrollRef.current) {
+      hasInitialScrollRef.current = true;
+      scrollToBottom("auto");
+      shouldAutoScrollRef.current = false;
+      return;
+    }
+
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom("smooth");
+      shouldAutoScrollRef.current = false;
+    }
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!user || !conversation) return;
-    if (sending) return;
+    if (!user || !conversation || sending) return;
 
     const content = messageInput.trim();
 
@@ -263,25 +390,24 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
     setActionMessage("");
 
     try {
-      const tempContent = content;
-
       const { data: insertedMessage, error } = await supabase
         .from("messages")
         .insert({
           conversation_id: conversation.id,
           sender_id: user.id,
-          content: tempContent,
+          content,
         })
         .select("id, conversation_id, sender_id, content, created_at")
         .single();
 
       if (error || !insertedMessage) {
-        console.error("Send message error:", error);
         setErrorMessage(
           error?.message || "Could not send message. Please try again."
         );
         return;
       }
+
+      shouldAutoScrollRef.current = true;
 
       setMessages((prev) => {
         if (prev.some((item) => item.id === insertedMessage.id)) {
@@ -299,6 +425,13 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
       setErrorMessage("Something went wrong. Please try again.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleTextareaKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
     }
   };
 
@@ -328,14 +461,36 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
     });
   };
 
+  const groupedMessages = useMemo(() => {
+    const groups: Array<{ label: string; items: MessageRow[] }> = [];
+
+    for (const message of messages) {
+      const label = formatHeaderDate(message.created_at);
+      const lastGroup = groups[groups.length - 1];
+
+      if (!lastGroup || lastGroup.label !== label) {
+        groups.push({
+          label,
+          items: [message],
+        });
+      } else {
+        lastGroup.items.push(message);
+      }
+    }
+
+    return groups;
+  }, [messages]);
+
   return (
-    <div className="relative min-h-screen bg-[#0B0B12] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.16),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#05030A] text-[#F5F7FF]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.16),transparent_30%),radial-gradient(circle_at_right,rgba(59,130,246,0.12),transparent_24%),radial-gradient(circle_at_bottom,rgba(239,68,68,0.12),transparent_26%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:42px_42px]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.03] [background:repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.03)_4px)]" />
 
       <Navbar active="messages" />
 
-      <main className="relative mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[#9CA3AF]">
+      <main className="relative mx-auto max-w-7xl px-4 pb-12 pt-28 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-white/45">
           <Link href="/" className="transition hover:text-white">
             Home
           </Link>
@@ -348,41 +503,42 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
         </div>
 
         {errorMessage && !loading && !conversation && (
-          <div className="rounded-[30px] border border-red-500/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(239,68,68,0.08))] p-8 shadow-[0_12px_40px_rgba(127,29,29,0.12)]">
-            <div className="text-lg font-semibold text-red-200">
-              Conversation unavailable
+          <div className="rounded-[30px] border border-rose-500/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(239,68,68,0.08))] p-8 shadow-[0_12px_40px_rgba(127,29,29,0.12)]">
+            <div className="text-lg font-semibold text-rose-200">
+              Conversation Unavailable
             </div>
-            <p className="mt-3 text-sm leading-7 text-red-300/90">
+            <p className="mt-3 text-sm leading-7 text-rose-300/90">
               {errorMessage}
             </p>
           </div>
         )}
 
         {loading ? (
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-[#9CA3AF]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.92),rgba(11,15,26,0.92))] p-8 text-white/45 backdrop-blur-xl">
             Loading conversation...
           </div>
         ) : !user ? (
-          <div className="rounded-[30px] border border-white/10 bg-[#131320] p-8 text-center">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.92),rgba(11,15,26,0.92))] p-8 text-center backdrop-blur-xl">
             <div className="text-xl font-bold text-white">
               Sign in to access messages
             </div>
-            <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
+            <p className="mt-3 text-sm leading-7 text-white/55">
               You need an account to view this conversation.
             </p>
             <Link
               href="/login"
-              className="mt-5 inline-flex rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02]"
+              className="relative mt-5 inline-flex overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_35px_rgba(168,85,247,0.22)] transition duration-300 hover:scale-[1.02] hover:shadow-[0_0_45px_rgba(168,85,247,0.28)]"
             >
-              Go to login
+              <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+              <span className="relative z-10">Go to login</span>
             </Link>
           </div>
         ) : conversation && listing ? (
-          <section className="grid gap-8 xl:grid-cols-[320px_1fr]">
+          <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
             <aside className="space-y-5">
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                <div className="mb-4 inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
-                  Listing
+              <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.92),rgba(12,16,28,0.92))] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.30)] backdrop-blur-xl">
+                <div className="mb-4 inline-flex rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-sm text-fuchsia-200">
+                  Listing details
                 </div>
 
                 <div className="flex items-start gap-4">
@@ -392,7 +548,7 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                     <div className="truncate text-lg font-bold text-white">
                       {listing.item_name}
                     </div>
-                    <div className="mt-1 text-sm text-[#9CA3AF]">
+                    <div className="mt-1 text-sm text-white/45">
                       {listing.game} • {listing.category}
                     </div>
                     <div className="mt-3 text-xl font-bold text-emerald-300">
@@ -401,24 +557,20 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/8 bg-white/5 p-4 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[#9CA3AF]">Status</span>
-                    <span className="font-semibold text-white">
-                      {listing.status}
-                    </span>
-                  </div>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <InfoCard label="Status" value={listing.status} />
+                  <InfoCard label="Messages" value={messages.length} />
                 </div>
 
                 <Link
                   href={`/listing/${listing.id}`}
-                  className="mt-5 block w-full rounded-2xl border border-white/10 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/5"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-center text-sm font-semibold text-white transition hover:border-fuchsia-400/20 hover:bg-white/[0.08]"
                 >
                   View listing
                 </Link>
               </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-[#131320] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.92),rgba(12,16,28,0.92))] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.30)] backdrop-blur-xl">
                 <div className="mb-4 inline-flex rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-sm text-sky-300">
                   Participants
                 </div>
@@ -428,26 +580,19 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                     const typedProfile = profileItem as ProfileRow;
                     const username = typedProfile.username || "Unknown user";
                     const isMe = typedProfile.id === user.id;
-                    const isAdmin = typedProfile.role === "admin";
+                    const isAdmin =
+                      typedProfile.role === "admin" ||
+                      typedProfile.role === "owner" ||
+                      typedProfile.role === "moderator";
                     const roleLabel =
                       typedProfile.id === conversation.buyer_id ? "Buyer" : "Seller";
 
                     return (
                       <div
                         key={typedProfile.id}
-                        className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/5 p-3"
+                        className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-3"
                       >
-                        {typedProfile.avatar_url ? (
-                          <img
-                            src={typedProfile.avatar_url}
-                            alt={username}
-                            className="h-12 w-12 rounded-2xl border border-white/10 object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-blue-500/20 text-sm font-bold text-white">
-                            {username[0]?.toUpperCase() || "U"}
-                          </div>
-                        )}
+                        <UserAvatar profile={typedProfile} fallback={username} />
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -455,24 +600,24 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
                               {username}
                             </div>
 
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/75">
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-white/75">
                               {roleLabel}
                             </span>
 
                             {isMe && (
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/75">
+                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-white/75">
                                 You
                               </span>
                             )}
 
                             {isAdmin && (
-                              <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-300">
+                              <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200">
                                 Admin
                               </span>
                             )}
                           </div>
 
-                          <div className="text-xs text-[#9CA3AF]">
+                          <div className="text-xs text-white/40">
                             Conversation member
                           </div>
                         </div>
@@ -483,131 +628,166 @@ export default function MessageConversationPage({ params }: MessagePageProps) {
               </div>
             </aside>
 
-            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#131320] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-              <div className="border-b border-white/8 px-6 py-5">
+            <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.95),rgba(11,15,26,0.95))] shadow-[0_20px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-5 sm:px-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
-                    <div className="text-2xl font-bold text-white">
-                      Conversation with {otherUser?.username || "Unknown user"}
-                    </div>
-                    <div className="mt-1 text-sm text-[#9CA3AF]">
-                      Stay on Dxblox and trade carefully.
+                    <div className="flex items-center gap-3">
+                      <UserAvatar
+                        profile={otherUser}
+                        fallback={otherUser?.username || "User"}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate bg-gradient-to-r from-white via-fuchsia-100 to-blue-100 bg-clip-text text-2xl font-black text-transparent">
+                          {otherUser?.username || "Unknown user"}
+                        </div>
+                        <div className="mt-1 text-sm text-white/45">
+                          Trade safely and keep all communication on Dxblox.
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-[#9CA3AF]">
-                      {messages.length} {messages.length === 1 ? "message" : "messages"}
-                    </div>
-                    <div className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-[#9CA3AF]">
-                      Started {formatHeaderDate(conversation.created_at)}
-                    </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InfoCard label="Messages" value={messages.length} />
+                    <InfoCard
+                      label="Started"
+                      value={formatHeaderDate(conversation.created_at)}
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="px-6 pt-6">
-                {errorMessage && conversation && (
-                  <div className="mb-4 rounded-[24px] border border-red-500/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(239,68,68,0.08))] p-5 shadow-[0_12px_40px_rgba(127,29,29,0.12)]">
-                    <div className="text-base font-semibold text-red-200">
-                      Message issue
+              <div className="flex h-[72vh] min-h-[620px] flex-col">
+                <div className="px-5 pt-5 sm:px-6">
+                  {errorMessage && conversation && (
+                    <div className="mb-4 rounded-[24px] border border-rose-500/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(239,68,68,0.08))] p-5 shadow-[0_12px_40px_rgba(127,29,29,0.12)]">
+                      <div className="text-base font-semibold text-rose-200">
+                        Message issue
+                      </div>
+                      <p className="mt-2 text-sm leading-7 text-rose-300/90">
+                        {errorMessage}
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-red-300/90">
-                      {errorMessage}
-                    </p>
-                  </div>
-                )}
+                  )}
 
-                {actionMessage && (
-                  <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                    {actionMessage}
-                  </div>
-                )}
-              </div>
-
-              <div className="max-h-[560px] space-y-4 overflow-y-auto px-6 pb-6">
-                {messages.length === 0 ? (
-                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-8 text-center">
-                    <div className="text-lg font-bold text-white">
-                      No messages yet
+                  {actionMessage && (
+                    <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                      {actionMessage}
                     </div>
-                    <p className="mt-3 text-sm leading-7 text-[#9CA3AF]">
-                      Start the conversation below.
-                    </p>
-                  </div>
-                ) : (
-                  messages.map((message) => {
-                    const isMine = message.sender_id === user.id;
-                    const senderProfile =
-                      message.sender_id === buyerProfile?.id
-                        ? buyerProfile
-                        : sellerProfile;
+                  )}
+                </div>
 
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-[24px] px-4 py-3 shadow-sm ${
-                            isMine
-                              ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white"
-                              : "border border-white/10 bg-white/5 text-white"
-                          }`}
-                        >
-                          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                            <span
-                              className={
-                                isMine ? "text-white/80" : "text-[#9CA3AF]"
-                              }
-                            >
-                              {senderProfile?.username || "Unknown user"}
-                            </span>
-                            <span
-                              className={
-                                isMine ? "text-white/60" : "text-[#6F778B]"
-                              }
-                            >
-                              {formatMessageTime(message.created_at)}
-                            </span>
+                <div
+                  ref={messagesContainerRef}
+                  className="flex-1 overflow-y-auto px-5 pb-5 sm:px-6"
+                >
+                  {messages.length === 0 ? (
+                    <div className="flex h-full min-h-[260px] items-center justify-center">
+                      <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/[0.05] p-8 text-center">
+                        <div className="text-lg font-bold text-white">
+                          No messages yet
+                        </div>
+                        <p className="mt-3 text-sm leading-7 text-white/50">
+                          Start the conversation below.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {groupedMessages.map((group) => (
+                        <div key={group.label}>
+                          <div className="mb-4 flex items-center justify-center">
+                            <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-medium text-white/45">
+                              {group.label}
+                            </div>
                           </div>
 
-                          <p className="whitespace-pre-wrap break-words text-sm leading-7">
-                            {message.content}
-                          </p>
+                          <div className="space-y-4">
+                            {group.items.map((message) => {
+                              const isMine = message.sender_id === user.id;
+                              const senderProfile =
+                                message.sender_id === buyerProfile?.id
+                                  ? buyerProfile
+                                  : sellerProfile;
+
+                              return (
+                                <div
+                                  key={message.id}
+                                  className={`flex ${
+                                    isMine ? "justify-end" : "justify-start"
+                                  }`}
+                                >
+                                  <div
+                                    className={`max-w-[82%] rounded-[26px] border px-4 py-3 shadow-sm sm:max-w-[75%] ${
+                                      isMine
+                                        ? "border-fuchsia-400/18 bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(59,130,246,0.12),rgba(239,68,68,0.10))] text-white shadow-[0_0_20px_rgba(168,85,247,0.08)]"
+                                        : "border-white/10 bg-white/[0.05] text-white"
+                                    }`}
+                                  >
+                                    <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
+                                      <span
+                                        className={
+                                          isMine ? "text-white/78" : "text-white/45"
+                                        }
+                                      >
+                                        {senderProfile?.username || "Unknown user"}
+                                      </span>
+                                      <span
+                                        className={
+                                          isMine ? "text-white/55" : "text-white/30"
+                                        }
+                                      >
+                                        {formatMessageTime(message.created_at)}
+                                      </span>
+                                    </div>
+
+                                    <p className="whitespace-pre-wrap break-words text-sm leading-7">
+                                      {message.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-white/10 p-5 sm:p-6">
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-3 shadow-[0_0_25px_rgba(59,130,246,0.04)]">
+                    <textarea
+                      rows={4}
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyDown={handleTextareaKeyDown}
+                      placeholder="Write your message..."
+                      maxLength={1000}
+                      className="w-full resize-none bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-white/25"
+                    />
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1 text-xs text-white/45">
+                        <div>{messageInput.trim().length}/1000 characters</div>
+                        <div className="text-white/28">
+                          Enter to send • Shift + Enter for new line
                         </div>
                       </div>
-                    );
-                  })
-                )}
 
-                <div ref={bottomRef} />
-              </div>
-
-              <div className="border-t border-white/8 px-6 py-5">
-                <div className="rounded-[24px] border border-white/10 bg-white/5 p-3">
-                  <textarea
-                    rows={4}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="Write your message..."
-                    maxLength={1000}
-                    className="w-full resize-none bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-[#73798f]"
-                  />
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-xs text-[#9CA3AF]">
-                      {messageInput.trim().length}/1000 characters
+                      <button
+                        type="button"
+                        onClick={handleSendMessage}
+                        disabled={sending || messageInput.trim().length === 0}
+                        className="relative overflow-hidden rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(168,85,247,0.18)] transition duration-300 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_45%,transparent)]" />
+                        <span className="relative z-10">
+                          {sending ? "Sending..." : "Send message"}
+                        </span>
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSendMessage}
-                      disabled={sending || messageInput.trim().length === 0}
-                      className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {sending ? "Sending..." : "Send message"}
-                    </button>
                   </div>
                 </div>
               </div>
