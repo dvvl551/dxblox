@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, MessageSquare, Send, ShieldAlert, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  MessageSquare,
+  Send,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -47,6 +54,30 @@ function formatMessageTime(value: string) {
   }
 }
 
+function getThreadStatusLabel(status: string | null | undefined) {
+  if (!status) return "New conversation";
+  if (status === "open") return "Open";
+  if (status === "answered") return "Answered";
+  if (status === "closed") return "Closed";
+  return status;
+}
+
+function getThreadStatusClass(status: string | null | undefined) {
+  if (status === "open") {
+    return "border-rose-500/20 bg-rose-500/10 text-rose-200";
+  }
+
+  if (status === "answered") {
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+  }
+
+  if (status === "closed") {
+    return "border-white/10 bg-white/[0.05] text-white/70";
+  }
+
+  return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-200";
+}
+
 export default function SupportDrawer({
   open,
   onClose,
@@ -66,8 +97,53 @@ export default function SupportDrawer({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [successText, setSuccessText] = useState("");
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const shouldForceScrollOnNextUpdateRef = useRef(false);
+  const hasAutoScrolledInitiallyRef = useRef(false);
+
+  const previewAdmins = useMemo(() => admins.slice(0, 3), [admins]);
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+
+    if (behavior === "auto") {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior,
+    });
+  };
+
+  const isNearBottom = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom < 120;
+  };
+
+  const areMessagesEqual = (a: SupportMessage[], b: SupportMessage[]) => {
+    if (a.length !== b.length) return false;
+
+    for (let i = 0; i < a.length; i++) {
+      if (
+        a[i].id !== b[i].id ||
+        a[i].content !== b[i].content ||
+        a[i].sender_id !== b[i].sender_id ||
+        a[i].created_at !== b[i].created_at
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -93,6 +169,10 @@ export default function SupportDrawer({
       setSubject("");
       setMessage("");
       setErrorText("");
+      setSuccessText("");
+      hasAutoScrolledInitiallyRef.current = false;
+      shouldForceScrollOnNextUpdateRef.current = false;
+      shouldStickToBottomRef.current = true;
       return;
     }
 
@@ -131,16 +211,16 @@ export default function SupportDrawer({
 
     let mounted = true;
 
-    async function bootConversation() {
+    async function loadExistingConversation() {
       const loaded = await ensureConversationLoaded();
-      if (!mounted) return;
+      if (!mounted || !loaded) return;
 
-      if (loaded?.thread && loaded.messages.length > 0) {
+      if (loaded.thread && loaded.messages.length > 0) {
         setView("conversation");
       }
     }
 
-    bootConversation();
+    loadExistingConversation();
 
     return () => {
       mounted = false;
@@ -163,10 +243,36 @@ export default function SupportDrawer({
         (payload) => {
           const newMessage = payload.new as SupportMessage;
 
+          if (newMessage.sender_id === user?.id || isNearBottom()) {
+            shouldForceScrollOnNextUpdateRef.current = true;
+          }
+
           setMessages((prev) => {
             if (prev.some((msg) => msg.id === newMessage.id)) return prev;
             return [...prev, newMessage];
           });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "support_threads",
+          filter: `id=eq.${thread.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as SupportThread;
+          setThread((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  subject: updated.subject,
+                  status: updated.status,
+                  created_at: updated.created_at,
+                }
+              : updated
+          );
         }
       )
       .subscribe();
@@ -174,20 +280,30 @@ export default function SupportDrawer({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [open, thread?.id]);
+  }, [open, thread?.id, user?.id]);
 
   useEffect(() => {
     if (!messages.length) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
 
-  const previewAdmins = useMemo(() => admins.slice(0, 3), [admins]);
+    if (!hasAutoScrolledInitiallyRef.current) {
+      hasAutoScrolledInitiallyRef.current = true;
+      scrollToBottom("auto");
+      shouldForceScrollOnNextUpdateRef.current = false;
+      return;
+    }
+
+    if (shouldForceScrollOnNextUpdateRef.current || shouldStickToBottomRef.current) {
+      scrollToBottom("smooth");
+      shouldForceScrollOnNextUpdateRef.current = false;
+    }
+  }, [messages]);
 
   async function ensureConversationLoaded() {
     if (!user) return null;
 
     setLoadingConversation(true);
     setErrorText("");
+    setSuccessText("");
 
     try {
       const { data: existingThread, error: threadLookupError } = await supabase
@@ -205,6 +321,7 @@ export default function SupportDrawer({
       if (!existingThread) {
         setThread(null);
         setMessages([]);
+        hasAutoScrolledInitiallyRef.current = false;
         return { thread: null, messages: [] as SupportMessage[] };
       }
 
@@ -223,7 +340,9 @@ export default function SupportDrawer({
       }
 
       const typedMessages = (messageData ?? []) as SupportMessage[];
-      setMessages(typedMessages);
+      setMessages((prev) => (areMessagesEqual(prev, typedMessages) ? prev : typedMessages));
+      hasAutoScrolledInitiallyRef.current = false;
+      shouldForceScrollOnNextUpdateRef.current = true;
 
       return { thread: typedThread, messages: typedMessages };
     } catch (error) {
@@ -267,6 +386,7 @@ export default function SupportDrawer({
 
   async function handleOpenConversation() {
     setErrorText("");
+    setSuccessText("");
 
     if (!user) {
       setErrorText("You need to be logged in to open support.");
@@ -281,6 +401,7 @@ export default function SupportDrawer({
     e.preventDefault();
 
     setErrorText("");
+    setSuccessText("");
 
     if (!user) {
       setErrorText("You need to be logged in to send a support message.");
@@ -317,7 +438,9 @@ export default function SupportDrawer({
       } else {
         await supabase
           .from("support_threads")
-          .update({ status: "open" })
+          .update({
+            status: "open",
+          })
           .eq("id", threadId);
       }
 
@@ -337,6 +460,8 @@ export default function SupportDrawer({
         throw new Error(messageError?.message || "Could not send message.");
       }
 
+      shouldForceScrollOnNextUpdateRef.current = true;
+
       setMessages((prev) => {
         if (prev.some((msg) => msg.id === insertedMessage.id)) return prev;
         return [...prev, insertedMessage as SupportMessage];
@@ -344,6 +469,7 @@ export default function SupportDrawer({
 
       setMessage("");
       setView("conversation");
+      setSuccessText("Message sent.");
     } catch (error) {
       setErrorText(
         error instanceof Error
@@ -433,7 +559,7 @@ export default function SupportDrawer({
 
                 <p className="mt-3 max-w-xl text-sm leading-7 text-white/55 sm:text-base">
                   {view === "home"
-                    ? "Open a conversation with the Dxblox team, report an issue, or join the community."
+                    ? "Contact the Dxblox team, report an issue, or open a private support conversation."
                     : "Stay here and chat directly with support from this drawer."}
                 </p>
               </div>
@@ -451,6 +577,12 @@ export default function SupportDrawer({
             {errorText ? (
               <div className="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorText}
+              </div>
+            ) : null}
+
+            {successText ? (
+              <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {successText}
               </div>
             ) : null}
 
@@ -507,7 +639,7 @@ export default function SupportDrawer({
                         Community Discord
                       </h3>
                       <p className="mt-1 text-sm text-white/50">
-                        Add your Discord link here and replace it later.
+                        Add your Discord link here now and replace it later.
                       </p>
                     </div>
 
@@ -524,129 +656,167 @@ export default function SupportDrawer({
                 </div>
               </>
             ) : (
-              <div className="mt-8 grid gap-5 lg:grid-cols-[0.95fr_1.45fr]">
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-white/72">
-                    Thread details
-                  </h3>
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorText("");
+                    setSuccessText("");
+                    setView("home");
+                  }}
+                  className="mb-5 inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
+                >
+                  <ArrowLeft size={16} />
+                  Back
+                </button>
 
-                  <div className="mt-4">
-                    <label className="mb-2 block text-sm font-medium text-white/90">
-                      Subject
-                    </label>
-                    <input
-                      value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
-                      placeholder="Example: Problem with a listing"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
-                    />
-                  </div>
+                <div className="grid gap-5 lg:grid-cols-[0.95fr_1.45fr]">
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-white/72">
+                      Thread details
+                    </h3>
 
-                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/38">
-                      Status
-                    </div>
-                    <div className="mt-2 text-sm font-medium text-white">
-                      {thread?.status || "New conversation"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
-                    <div>
-                      <h3 className="text-base font-semibold text-white">
-                        Messages
-                      </h3>
-                      <p className="mt-1 text-sm text-white/45">
-                        Chat directly with the Dxblox team.
-                      </p>
+                    <div className="mt-4">
+                      <label className="mb-2 block text-sm font-medium text-white/90">
+                        Subject
+                      </label>
+                      <input
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        placeholder="Example: Problem with a listing"
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
+                      />
                     </div>
 
-                    {loadingConversation && (
-                      <span className="text-xs text-white/45">Loading…</span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 h-[280px] overflow-y-auto rounded-[20px] border border-white/8 bg-black/20 p-3 sm:p-4">
-                    {messages.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-center">
-                        <div>
-                          <div className="text-sm font-medium text-white">
-                            No messages yet
-                          </div>
-                          <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">
-                            Send your first message and the conversation will stay here.
-                          </p>
-                        </div>
+                    <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.22em] text-white/38">
+                        Status
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {messages.map((item) => {
-                          const isMine = !!user && item.sender_id === user.id;
+                      <div className="mt-2">
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${getThreadStatusClass(
+                            thread?.status
+                          )}`}
+                        >
+                          {getThreadStatusLabel(thread?.status)}
+                        </span>
+                      </div>
+                    </div>
 
-                          return (
-                            <div
-                              key={item.id}
-                              className={`flex ${
-                                isMine ? "justify-end" : "justify-start"
-                              }`}
-                            >
+                    <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.22em] text-white/38">
+                        Conversation
+                      </div>
+                      <div className="mt-2 text-sm font-medium text-white">
+                        {thread ? "Existing support thread" : "No thread yet"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+                      <div>
+                        <h3 className="text-base font-semibold text-white">
+                          Messages
+                        </h3>
+                        <p className="mt-1 text-sm text-white/45">
+                          Chat directly with the Dxblox team.
+                        </p>
+                      </div>
+
+                      {loadingConversation && (
+                        <span className="text-xs text-white/45">Loading…</span>
+                      )}
+                    </div>
+
+                    <div
+                      ref={messagesContainerRef}
+                      onScroll={() => {
+                        shouldStickToBottomRef.current = isNearBottom();
+                      }}
+                      className="mt-4 h-[320px] overflow-y-auto rounded-[20px] border border-white/8 bg-black/20 p-3 sm:p-4"
+                    >
+                      {messages.length === 0 ? (
+                        <div className="flex h-full items-center justify-center text-center">
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              No messages yet
+                            </div>
+                            <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">
+                              Send your first message and your conversation will stay here in this drawer.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {messages.map((item) => {
+                            const isMine = !!user && item.sender_id === user.id;
+
+                            return (
                               <div
-                                className={`max-w-[85%] rounded-[20px] px-4 py-3 text-sm leading-6 ${
-                                  isMine
-                                    ? "border border-fuchsia-400/18 bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(59,130,246,0.12),rgba(239,68,68,0.10))] text-white shadow-[0_0_20px_rgba(168,85,247,0.08)]"
-                                    : "border border-white/10 bg-white/[0.05] text-white/85"
+                                key={item.id}
+                                className={`flex ${
+                                  isMine ? "justify-end" : "justify-start"
                                 }`}
                               >
-                                <p className="whitespace-pre-wrap">{item.content}</p>
-                                <div className="mt-2 text-[11px] text-white/35">
-                                  {formatMessageTime(item.created_at)}
+                                <div
+                                  className={`max-w-[85%] rounded-[20px] px-4 py-3 text-sm leading-6 ${
+                                    isMine
+                                      ? "border border-fuchsia-400/18 bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(59,130,246,0.12),rgba(239,68,68,0.10))] text-white shadow-[0_0_20px_rgba(168,85,247,0.08)]"
+                                      : "border border-white/10 bg-white/[0.05] text-white/85"
+                                  }`}
+                                >
+                                  <p className="whitespace-pre-wrap">
+                                    {item.content}
+                                  </p>
+                                  <div className="mt-2 text-[11px] text-white/35">
+                                    {formatMessageTime(item.created_at)}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
-
-                  <form onSubmit={handleSendMessage} className="mt-4">
-                    <label className="mb-2 block text-sm font-medium text-white/90">
-                      New message
-                    </label>
-
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Explain your problem here..."
-                      rows={5}
-                      className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
-                    />
-
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <button
-                        type="submit"
-                        disabled={sending}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(168,85,247,0.18)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Send size={15} />
-                        {sending ? "Sending..." : "Send message"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMessage("");
-                          setErrorText("");
-                        }}
-                        className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
-                      >
-                        Clear
-                      </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </form>
+
+                    <form onSubmit={handleSendMessage} className="mt-4">
+                      <label className="mb-2 block text-sm font-medium text-white/90">
+                        New message
+                      </label>
+
+                      <textarea
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder="Explain your problem here..."
+                        rows={5}
+                        className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-fuchsia-400/30 focus:bg-white/[0.07]"
+                      />
+
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={sending}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(168,85,247,0.92),rgba(59,130,246,0.9),rgba(239,68,68,0.82))] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(168,85,247,0.18)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Send size={15} />
+                          {sending ? "Sending..." : "Send message"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMessage("");
+                            setErrorText("");
+                            setSuccessText("");
+                          }}
+                          className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             )}

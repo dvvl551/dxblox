@@ -79,15 +79,15 @@ function ListingImage({
 
 function Badge({ label }: { label: string }) {
   const styles: Record<string, string> = {
-    Available: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    Pending: "bg-orange-500/15 text-orange-300 border-orange-500/30",
-    Sold: "bg-red-500/15 text-red-300 border-red-500/30",
+    Available: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
+    Pending: "border-orange-500/30 bg-orange-500/15 text-orange-300",
+    Sold: "border-red-500/30 bg-red-500/15 text-red-300",
   };
 
   return (
     <span
       className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-        styles[label] || "border-white/10 bg-white/10 text-white/80"
+        styles[label] || "border-white/10 bg-white/5 text-white/75"
       }`}
     >
       {label}
@@ -95,7 +95,7 @@ function Badge({ label }: { label: string }) {
   );
 }
 
-function StatCard({
+function InfoStat({
   label,
   value,
 }: {
@@ -103,40 +103,38 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-violet-500/20 hover:bg-[linear-gradient(180deg,rgba(124,92,255,0.10),rgba(255,255,255,0.03))]">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#A7AFBF]">
+    <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#A7AFBF]">
         {label}
       </div>
-      <div className="mt-3 text-4xl font-black leading-none text-white">
-        {value}
-      </div>
+      <div className="mt-3 text-xl font-bold text-white">{value}</div>
     </div>
   );
 }
 
-function SectionShell({
+function SectionCard({
   title,
   description,
-  action,
+  actions,
   children,
 }: {
   title: string;
   description?: string;
-  action?: React.ReactNode;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="py-10">
-      <div className="mb-6 flex items-end justify-between gap-4">
+    <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white">
-            {title}
-          </h2>
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
           {description && (
-            <p className="mt-2 text-[#9CA3AF]">{description}</p>
+            <p className="mt-2 text-sm leading-7 text-[#9CA3AF]">
+              {description}
+            </p>
           )}
         </div>
-        {action}
+        {actions}
       </div>
       {children}
     </section>
@@ -149,17 +147,28 @@ export default function DxbloxHomepage() {
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState("");
   const [wishlistedIds, setWishlistedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchListings = async () => {
-      const { data } = await supabase
+      setLoading(true);
+      setPageError("");
+
+      const { data, error } = await supabase
         .from("listings")
         .select(
           "id, user_id, game, category, item_name, price, status, created_at, image_url"
         )
         .order("created_at", { ascending: false });
+
+      if (error) {
+        setListings([]);
+        setPageError("Could not load listings right now.");
+        setLoading(false);
+        return;
+      }
 
       setListings((data ?? []) as Listing[]);
       setLoading(false);
@@ -257,23 +266,22 @@ export default function DxbloxHomepage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#070b14] text-[#F5F7FF]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.12),transparent_28%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-gradient-to-b from-violet-600/10 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(124,92,255,0.14),transparent_35%),radial-gradient(circle_at_top_right,rgba(61,169,252,0.10),transparent_28%)]" />
 
       <Navbar active="home" />
 
       <main className="relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 lg:px-8">
-        <section className="grid items-start gap-8 py-8 lg:grid-cols-[1.12fr_0.88fr] lg:py-12">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
+        <section className="grid gap-8 xl:grid-cols-[1.08fr_0.92fr]">
+          <div className="flex flex-col justify-center">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-300">
               Independent platform • Not affiliated with Roblox
             </div>
 
-            <h1 className="max-w-4xl text-5xl font-black tracking-tight text-white sm:text-6xl">
+            <h1 className="mt-6 max-w-4xl text-5xl font-black tracking-tight text-white sm:text-6xl">
               Buy and sell Roblox listings faster on Dxblox
             </h1>
 
-            <p className="mt-4 max-w-2xl text-xl font-semibold text-white/90">
+            <p className="mt-4 text-xl font-semibold text-white/90">
               Trade smarter. Stay safer.
             </p>
 
@@ -315,11 +323,7 @@ export default function DxbloxHomepage() {
 
             <div className="mt-8 grid max-w-3xl gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
-                <StatCard
-                  key={stat.label}
-                  label={stat.label}
-                  value={stat.value}
-                />
+                <InfoStat key={stat.label} label={stat.label} value={stat.value} />
               ))}
             </div>
 
@@ -339,257 +343,226 @@ export default function DxbloxHomepage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-5 shadow-2xl shadow-violet-950/20">
-            <div className="rounded-[24px] bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.08))] p-4">
-              <ListingImage
-                src={featuredListing?.image_url ?? null}
-                alt={featuredListing?.item_name || "Featured listing"}
-                className="h-64 w-full rounded-[20px] bg-black/20"
-              />
+          <div className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+            <ListingImage
+              src={featuredListing?.image_url ?? null}
+              alt={featuredListing?.item_name || "Featured listing"}
+              className="h-[460px] w-full rounded-[24px]"
+            />
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <InfoStat label="Price" value={featuredListing?.price || "—"} />
+              <InfoStat label="Game" value={featuredListing?.game || "—"} />
+              <InfoStat label="Status" value={featuredListing?.status || "—"} />
             </div>
 
-            <div className="mt-5 flex items-start justify-between gap-4">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm text-[#9CA3AF]">Featured listing</div>
-                <div className="mt-1 truncate text-2xl font-bold text-white">
-                  {featuredListing?.item_name || "No listing yet"}
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {featuredListing?.status && <Badge label={featuredListing.status} />}
+                  {featuredListing?.category && (
+                    <span className="rounded-full border border-sky-500/30 bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-300">
+                      {featuredListing.category}
+                    </span>
+                  )}
                 </div>
-                <div className="mt-1 text-sm text-[#9CA3AF]">
+
+                <h2 className="truncate text-3xl font-black tracking-tight text-white">
+                  {featuredListing?.item_name || "No listing yet"}
+                </h2>
+
+                <p className="mt-2 text-[#9CA3AF]">
                   {featuredListing
                     ? `${featuredListing.game} • ${featuredListing.category}`
                     : "Create the first listing"}
-                </div>
+                </p>
               </div>
 
-              {featuredListing && <Badge label={featuredListing.status} />}
+              <Link
+                href={featuredListing ? `/listing/${featuredListing.id}` : "/listing"}
+                className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+              >
+                View listing
+              </Link>
             </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-xs text-[#9CA3AF]">Price</div>
-                <div className="mt-1 truncate font-semibold text-white">
-                  {featuredListing?.price || "—"}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-xs text-[#9CA3AF]">Game</div>
-                <div className="mt-1 truncate font-semibold text-white">
-                  {featuredListing?.game || "—"}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-xs text-[#9CA3AF]">Status</div>
-                <div className="mt-1 truncate font-semibold text-white">
-                  {featuredListing?.status || "—"}
-                </div>
-              </div>
-            </div>
-
-            <Link
-              href={featuredListing ? `/listing/${featuredListing.id}` : "/listing"}
-              className="mt-5 block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center font-semibold text-white transition hover:bg-white/10"
-            >
-              View listing
-            </Link>
           </div>
         </section>
 
-        <SectionShell
-          title="Popular games"
-          description="Browse listings from the most active Roblox communities on Dxblox."
-          action={
-            <Link
-              href="/games"
-              className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
-            >
-              View all games
-            </Link>
-          }
-        >
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            {games.map((game) => (
-              <Link
-                key={game.name}
-                href={`/games/${game.slug}`}
-                className="group block rounded-[28px] border border-white/10 bg-[#10111a] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition hover:-translate-y-1 hover:border-violet-500/30 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-              >
-                <div className="relative aspect-[16/10] overflow-hidden rounded-[20px] border border-white/8 bg-[#0f1018]">
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-                  <img
-                    src={game.image}
-                    alt={game.name}
-                    className="absolute inset-0 h-full w-full object-contain object-center p-1 transition duration-300 group-hover:scale-105"
-                  />
-                </div>
-
-                <div className="mt-4">
-                  <div className="text-lg font-bold text-white">{game.name}</div>
-                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-[#9CA3AF]">
-                    {game.desc}
-                  </p>
-                  <div className="mt-3 text-xs text-violet-300">
-                    {game.listings}
-                  </div>
-                  <div className="mt-5 w-full rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-center text-sm font-semibold text-white/90 transition group-hover:bg-white/5">
-                    View listings
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </SectionShell>
-
-        <SectionShell
-          title="Featured listings"
-          description="Latest real offers from Dxblox users."
-          action={
-            <Link
-              href="/listing"
-              className="hidden text-sm font-semibold text-violet-300 transition hover:text-violet-200 md:inline-block"
-            >
-              Browse all listings
-            </Link>
-          }
-        >
-          {loading ? (
-            <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 text-sm text-[#9CA3AF]">
-              Loading featured listings...
-            </div>
-          ) : featuredListings.length === 0 ? (
-            <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6 text-sm text-[#9CA3AF]">
-              No listings yet.
-            </div>
-          ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {featuredListings.map((listing) => (
-                <article
-                  key={listing.id}
-                  className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-4 transition hover:-translate-y-1 hover:border-violet-500/30"
+        <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px]">
+          <div className="space-y-8">
+            <SectionCard
+              title="Popular games"
+              description="Browse listings from the most active Roblox communities on Dxblox."
+              actions={
+                <Link
+                  href="/games"
+                  className="text-sm font-medium text-violet-300 transition hover:text-violet-200"
                 >
-                  <Link href={`/listing/${listing.id}`} className="block">
-                    <ListingImage
-                      src={listing.image_url}
-                      alt={listing.item_name}
-                      className="h-44 w-full rounded-[20px]"
-                    />
-
-                    <div className="mt-4 flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="truncate text-lg font-bold text-white">
-                          {listing.item_name}
-                        </div>
-                        <div className="mt-1 text-sm text-[#9CA3AF]">
-                          {listing.game}
-                        </div>
-                      </div>
-
-                      <Badge label={listing.status} />
+                  View all
+                </Link>
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {games.map((game) => (
+                  <Link
+                    key={game.name}
+                    href={`/games/${game.slug}`}
+                    className="rounded-[22px] border border-white/10 bg-white/5 p-3 transition hover:-translate-y-1 hover:border-violet-500/30"
+                  >
+                    <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-white/8 bg-[#0f1018]">
+                      <img
+                        src={game.image}
+                        alt={game.name}
+                        className="h-full w-full object-contain object-center p-1"
+                      />
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-[#9CA3AF]">Category</span>
-                      <span className="font-medium text-white">
-                        {listing.category}
-                      </span>
+                    <div className="mt-3">
+                      <div className="font-semibold text-white">{game.name}</div>
+                      <div className="mt-1 text-sm text-[#9CA3AF]">{game.desc}</div>
+                      <div className="mt-3 text-sm font-medium text-violet-300">
+                        {game.listings}
+                      </div>
                     </div>
                   </Link>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="truncate text-2xl font-bold text-white">
-                      {listing.price}
-                    </div>
-
-                    <Link
-                      href={`/listing/${listing.id}`}
-                      className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
-                    >
-                      View listing
-                    </Link>
-                  </div>
-
-                  <div className="mt-4">
-                    <WishlistButton
-                      listingId={listing.id}
-                      listingUserId={listing.user_id}
-                      initialIsWishlisted={wishlistedIds.includes(listing.id)}
-                      onChanged={(nextValue) => {
-                        setWishlistedIds((prev) =>
-                          nextValue
-                            ? [...new Set([...prev, listing.id])]
-                            : prev.filter((id) => id !== listing.id)
-                        );
-                      }}
-                    />
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </SectionShell>
-
-        <SectionShell title="Why Dxblox">
-          <div className="grid gap-5 lg:grid-cols-3">
-            {[
-              {
-                title: "Live listings",
-                text: "Browse active Roblox marketplace posts with cleaner cards, clearer pricing and faster discovery.",
-              },
-              {
-                title: "Built-in messaging",
-                text: "Contact sellers directly and keep conversations organized in one place.",
-              },
-              {
-                title: "Reports & moderation",
-                text: "Safer trading flow with review tools, reports and admin moderation already built in.",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.94),rgba(11,15,26,0.94))] p-6"
-              >
-                <div className="mb-4 h-12 w-12 rounded-2xl border border-white/10 bg-white/5" />
-                <div className="text-xl font-bold text-white">{item.title}</div>
-                <p className="mt-3 leading-7 text-[#9CA3AF]">{item.text}</p>
+                ))}
               </div>
-            ))}
-          </div>
-        </SectionShell>
+            </SectionCard>
 
-        <section className="py-10">
-          <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,38,0.96),rgba(11,15,26,0.96))] p-6 lg:p-8">
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="text-sm font-medium uppercase tracking-[0.18em] text-violet-300">
-                Start on Dxblox
-              </div>
-
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Buy, sell and discover Roblox listings faster
-              </h2>
-
-              <p className="mt-4 leading-7 text-[#9CA3AF]">
-                Explore active games, save listings to your wishlist and post
-                your own offers in a cleaner marketplace experience.
-              </p>
-
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <SectionCard
+              title="Featured listings"
+              description="Latest real offers from Dxblox users."
+              actions={
                 <Link
                   href="/listing"
-                  className="rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:scale-[1.02]"
+                  className="text-sm font-medium text-violet-300 transition hover:text-violet-200"
                 >
-                  Browse listings
+                  Browse all
                 </Link>
+              }
+            >
+              {pageError ? (
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+                  {pageError}
+                </div>
+              ) : loading ? (
+                <div className="rounded-[22px] border border-white/8 bg-white/5 p-5 text-sm text-[#9CA3AF]">
+                  Loading featured listings...
+                </div>
+              ) : featuredListings.length === 0 ? (
+                <div className="rounded-[22px] border border-white/8 bg-white/5 p-5 text-sm text-[#9CA3AF]">
+                  No listings yet.
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {featuredListings.map((listing) => (
+                    <article
+                      key={listing.id}
+                      className="rounded-[22px] border border-white/10 bg-white/5 p-3 transition hover:-translate-y-1 hover:border-violet-500/30"
+                    >
+                      <Link href={`/listing/${listing.id}`} className="block">
+                        <ListingImage
+                          src={listing.image_url}
+                          alt={listing.item_name}
+                          className="h-40 w-full rounded-2xl"
+                        />
 
-                <Link
-                  href="/create-listing"
-                  className="rounded-2xl border border-white/10 px-6 py-3 font-semibold text-white/90 transition hover:border-white/20 hover:bg-white/5"
-                >
-                  Post a listing
-                </Link>
-              </div>
-            </div>
+                        <div className="mt-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-white">
+                              {listing.item_name}
+                            </div>
+                            <div className="mt-1 text-sm text-[#9CA3AF]">
+                              {listing.game} • {listing.category}
+                            </div>
+                          </div>
+
+                          <Badge label={listing.status} />
+                        </div>
+                      </Link>
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="text-lg font-bold text-white">
+                          {listing.price}
+                        </div>
+
+                        <Link
+                          href={`/listing/${listing.id}`}
+                          className="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02]"
+                        >
+                          View
+                        </Link>
+                      </div>
+
+                      <div className="mt-4">
+                        <WishlistButton
+                          listingId={listing.id}
+                          listingUserId={listing.user_id}
+                          initialIsWishlisted={wishlistedIds.includes(listing.id)}
+                          onChanged={(nextValue) => {
+                            setWishlistedIds((prev) =>
+                              nextValue
+                                ? [...new Set([...prev, listing.id])]
+                                : prev.filter((id) => id !== listing.id)
+                            );
+                          }}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
           </div>
+
+          <aside className="space-y-5">
+            <SectionCard title="Marketplace overview">
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[#9CA3AF]">Total listings</span>
+                  <span className="text-right font-semibold text-white">
+                    {stats[0]?.value}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[#9CA3AF]">Available</span>
+                  <span className="text-right font-semibold text-white">
+                    {stats[1]?.value}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[#9CA3AF]">Games covered</span>
+                  <span className="text-right font-semibold text-white">
+                    {stats[2]?.value}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[#9CA3AF]">Sold / pending</span>
+                  <span className="text-right font-semibold text-white">
+                    {stats[3]?.value}
+                  </span>
+                </div>
+              </div>
+            </SectionCard>
+
+            <section className="rounded-[32px] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.16),rgba(61,169,252,0.10))] p-6 shadow-[0_20px_80px_rgba(76,29,149,0.18)]">
+              <h3 className="text-xl font-bold text-white">Why Dxblox</h3>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/85">
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Live listings from active Roblox traders
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Built-in messaging and wishlist tools
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Reports, moderation and safer trading flow
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                  Cleaner premium experience across the platform
+                </li>
+              </ul>
+            </section>
+          </aside>
         </section>
       </main>
     </div>
